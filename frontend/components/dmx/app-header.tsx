@@ -19,6 +19,7 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { BRANCHES, CATEGORIES, formatVND, getBranch, type CategoryId } from '@/lib/dmx-data'
+import { MVC_URL } from '@/lib/api'
 import { useStore } from './store-provider'
 import { cn } from '@/lib/utils'
 
@@ -36,6 +37,12 @@ export function AppHeader() {
           <AccountDropdown />
         </div>
       </div>
+      <nav aria-label="Điều hướng chính" className="mx-auto flex max-w-[1440px] gap-5 overflow-x-auto px-4 pb-2 text-sm font-semibold md:px-8">
+        <Link href="/" className="whitespace-nowrap text-body hover:text-primary">Cửa hàng</Link>
+        <Link href="/orders" className="whitespace-nowrap text-body hover:text-primary">Đơn hàng</Link>
+        <Link href="/dashboard" className="whitespace-nowrap text-body hover:text-primary">Quản trị CSDL</Link>
+        <a href={MVC_URL} className="whitespace-nowrap text-body hover:text-primary">Trang MVC</a>
+      </nav>
     </header>
   )
 }

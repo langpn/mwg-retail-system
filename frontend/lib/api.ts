@@ -1,4 +1,5 @@
 const BASE = process.env.NEXT_PUBLIC_API_BASE || '/api/v1'
+export const MVC_URL = `${BASE.replace(/\/api\/v1\/?$/, '')}/mvc/catalog`
 
 /* ── Error type ── */
 export class ApiError extends Error {
@@ -131,7 +132,7 @@ export interface BackendReview {
 
 export interface ReviewInput {
   product: { id: number }
-  customer: { id: number }
+  customer: { id: number } | { fullName: string; phone: string }
   rating: number
   comment: string
 }
@@ -266,6 +267,7 @@ export const api = {
   /* ── Reviews ── */
   reviews: {
     list: () => request<BackendReview[]>('/reviews'),
+    byProduct: (productId: number) => request<BackendReview[]>(`/reviews/product/${productId}`),
     create: (r: ReviewInput) => request<BackendReview>('/reviews', { method: 'POST', body: JSON.stringify(r) }),
     remove: (id: number) => request<void>(`/reviews/${id}`, { method: 'DELETE' }),
   },

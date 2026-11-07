@@ -3,7 +3,6 @@
 import { useStore } from './store-provider'
 import { ProductGrid } from './product-grid'
 import { InventoryMatrix } from './inventory-matrix'
-import { FastOrder } from './fast-order'
 
 export function MainPanels() {
   const { tab } = useStore()

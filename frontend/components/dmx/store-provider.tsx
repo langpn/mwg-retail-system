@@ -38,16 +38,6 @@ export interface CustomerProfile {
   role?: 'CUSTOMER' | 'ADMIN'
 }
 
-interface NewOrderInput {
-  sku: string
-  quantity: number
-  customerName: string
-  phone: string
-  address: string
-  branchId: BranchId
-  promoCode: string
-}
-
 interface CartCheckoutInput {
   customerName: string
   phone: string
@@ -83,12 +73,7 @@ interface StoreValue {
   pageLoading: boolean
   setPage: (p: number) => void
   setPageSize: (s: number) => void
-  orderSku: string
-  startOrder: (sku: string) => void
-  setOrderSku: (sku: string) => void
   updateStock: (sku: string, branchId: BranchId, quantity: number) => void
-  placeOrder: (input: NewOrderInput) => Promise<Order | { error: string }>
-  confirmOrder: (id: number) => void
   backendConnected: boolean | null
   reloadFromBackend: () => void
   cart: CartItem[]
@@ -124,7 +109,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<ViewTab>('catalog')
   const [sort, setSort] = useState<SortOption>('default')
-  const [orderSku, setOrderSku] = useState('')
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null)
 
   const [pageSize, setPageSizeState] = useState(8)
@@ -406,12 +390,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [products, backendConnected],
   )
 
-  const startOrder = useCallback((sku: string) => {
-    setOrderSku(sku)
-    const product = products.find((p) => p.sku === sku)
-    if (product) addToCart(product, 1)
-  }, [products, addToCart])
-
   /* ── Refresh stock from stock-matrix after a successful order ── */
   const refreshStockMatrix = useCallback(async () => {
     try {
@@ -435,28 +413,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return result
   }, [backendConnected, products, orders, refreshStockMatrix])
 
-  const placeOrder = useCallback(async (input: NewOrderInput) => {
-    const product = products.find((item) => item.sku === input.sku)
-    if (!product) return { error: 'Sản phẩm không tồn tại.' }
-    return submit([{ product, quantity: input.quantity }], input)
-  }, [products, submit])
-
   const placeCartOrder = useCallback(async (input: CartCheckoutInput) => {
     const result = await submit(cart, input)
     if (!('error' in result)) clearCart()
     return result
   }, [cart, submit, clearCart])
-
-  /* ── Confirm order ── */
-  const confirmOrder = useCallback(
-    async (id: number) => {
-      setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status: 'CONFIRMED' } : o)))
-      if (backendConnected) {
-        try { await api.orders.updateStatus(id, 'CONFIRMED') } catch {}
-      }
-    },
-    [backendConnected],
-  )
 
   const value = useMemo<StoreValue>(
     () => ({
@@ -486,12 +447,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       pageLoading,
       setPage,
       setPageSize,
-      orderSku,
-      startOrder,
-      setOrderSku,
       updateStock,
-      placeOrder,
-      confirmOrder,
       backendConnected,
       reloadFromBackend,
       cart,
@@ -509,10 +465,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [
       products, filteredProducts, orders, branchId, category, brands, budget, query,
       tab, sort, page, pageSize, pagedProducts, totalProducts, totalPages, pageLoading,
-      orderSku, backendConnected, cart, cartCount, cartSubtotal, customer,
+      backendConnected, cart, cartCount, cartSubtotal, customer,
       setBranchId, setCategory, toggleBrand, setBudget, setQuery, resetFilters,
-      setTab, setSort, setPage, setPageSize, startOrder, setOrderSku, updateStock,
-      placeOrder, confirmOrder, reloadFromBackend, addToCart, updateCartQty,
+      setTab, setSort, setPage, setPageSize, updateStock,
+      reloadFromBackend, addToCart, updateCartQty,
       removeFromCart, clearCart, placeCartOrder, loginCustomer, logoutCustomer,
     ],
   )

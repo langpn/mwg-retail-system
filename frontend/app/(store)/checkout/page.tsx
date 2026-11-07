@@ -2,500 +2,177 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import {
-  ArrowLeft,
-  Check,
-  CheckCircle2,
-  MapPin,
-  Package,
-  Phone,
-  ShieldCheck,
-  ShoppingBag,
-  Store,
-  Tag,
-  Truck,
-  User,
-  Wallet,
-} from 'lucide-react'
-import { BRANCHES, formatVND, type BranchId, type Order } from '@/lib/dmx-data'
-import { useStore } from '@/components/dmx/store-provider'
+import { useSearchParams } from 'next/navigation'
+import { BRANCHES, formatVND, getBranch, type Order } from '@/lib/dmx-data'
 import { usePriceQuote } from '@/lib/pricing'
+import { useStore } from '@/components/dmx/store-provider'
 import { AppHeader } from '@/components/dmx/app-header'
 import { SiteFooter } from '@/components/dmx/site-footer'
-import { cn } from '@/lib/utils'
 
 export default function CheckoutPage() {
-  return (
-    <Suspense fallback={<div className="p-12 text-center text-sm text-muted-foreground">Đang tải trang thanh toán...</div>}>
-      <CheckoutContent />
-    </Suspense>
-  )
+  return <Suspense fallback={<p className="p-12 text-center">Đang tải...</p>}><CheckoutContent /></Suspense>
 }
 
+const inputClass = 'mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
+
 function CheckoutContent() {
-  const router = useRouter()
   const searchParams = useSearchParams()
-  const initialPromo = searchParams.get('promo') || ''
-
-  const { cart, cartCount, placeCartOrder, customer, products, backendConnected, branchId: storeBranchId } = useStore()
-
-  // 1. Thông tin người nhận
+  const { cart, customer, products, backendConnected, branchId, setBranchId, placeCartOrder } = useStore()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-
-  // 2. Hình thức nhận hàng: 'delivery' (giao tận nơi) hoặc 'pickup' (nhận tại siêu thị)
-  const [fulfillment, setFulfillment] = useState<'delivery' | 'pickup'>('delivery')
-  const [deliveryAddress, setDeliveryAddress] = useState('')
-  const [selectedBranch, setSelectedBranch] = useState<BranchId>(storeBranchId || 'q9')
-
-  // 3. Khuyến mãi & Submit
-  const [promo, setPromo] = useState(initialPromo)
-  const [promoInput, setPromoInput] = useState(initialPromo)
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(false)
+  const [fulfillment, setFulfillment] = useState<'pickup' | 'delivery'>('pickup')
+  const [address, setAddress] = useState('')
+  const [promo, setPromo] = useState(searchParams.get('promo') || '')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [successOrder, setSuccessOrder] = useState<Order | null>(null)
+  const promoCode = promo.trim().toUpperCase()
+  const quote = usePriceQuote(cart, promoCode, branchId, products, backendConnected)
 
-  // Tự động điền nếu đã đăng nhập thành viên
   useEffect(() => {
-    if (customer) {
-      setName((prev) => prev || customer.fullName || '')
-      setPhone((prev) => prev || customer.phone || '')
-      if (customer.address) setDeliveryAddress((prev) => prev || customer.address || '')
-    }
+    if (!customer) return
+    setName((value) => value || customer.fullName)
+    setPhone((value) => value || customer.phone)
+    setAddress((value) => value || customer.address || '')
   }, [customer])
 
-  // Nếu là Quản trị viên, không cho phép đặt hàng
-  if (customer?.role === 'ADMIN') {
-    return (
-      <div className="flex min-h-screen flex-col bg-slate-50 text-foreground">
-        <AppHeader />
-        <main className="mx-auto flex w-full max-w-md flex-1 items-center justify-center p-4 py-16">
-          <div className="w-full rounded-2xl border border-border bg-card p-6 text-center shadow-lg">
-            <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
-              <ShieldCheck className="size-7" />
-            </div>
-            <h1 className="text-lg font-black text-foreground">Tài Khoản Quản Trị Viên</h1>
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              Tài khoản Quản trị viên chỉ phục vụ vận hành và theo dõi đơn hàng, không thực hiện đặt hàng trực tiếp.
-            </p>
-            <div className="mt-6 flex flex-col gap-2.5">
-              <Link
-                href="/dashboard"
-                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-extrabold text-white shadow-sm transition-all hover:bg-primary-deep"
-              >
-                Vào Bảng Quản Trị (Dashboard)
-              </Link>
-              <Link
-                href="/"
-                className="flex h-10 items-center justify-center rounded-xl border border-border bg-secondary/50 text-xs font-bold text-foreground transition-colors hover:bg-secondary"
-              >
-                Quay về trang chủ
-              </Link>
-            </div>
-          </div>
-        </main>
-        <SiteFooter />
-      </div>
-    )
-  }
-
-  const promoKey = promo.trim().toUpperCase()
-  const quote = usePriceQuote(cart, promoKey, selectedBranch, products, backendConnected)
-  const { subtotal, discount, total } = quote
-
-  function validate() {
-    const next: Record<string, string> = {}
-    if (name.trim().length < 2) next.name = 'Vui lòng nhập họ và tên người nhận.'
-    if (!/^0\d{9}$/.test(phone.replace(/\s/g, ''))) {
-      next.phone = 'Số điện thoại hợp lệ gồm 10 chữ số (bắt đầu bằng 0).'
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const normalizedPhone = phone.replace(/\s/g, '')
+    if (name.trim().length < 2) return setError('Vui lòng nhập họ và tên.')
+    if (!/^0\d{9}$/.test(normalizedPhone)) return setError('Số điện thoại gồm 10 chữ số và bắt đầu bằng 0.')
+    if (fulfillment === 'delivery' && !address.trim()) return setError('Vui lòng nhập địa chỉ nhận hàng.')
+    if (submitting || quote.loading || quote.error) return
+    const branch = getBranch(branchId)
+    setError('')
+    setSubmitting(true)
+    try {
+      const result = await placeCartOrder({
+        customerName: name.trim(), phone: normalizedPhone,
+        address: fulfillment === 'pickup' ? `Nhận tại ${branch.name} (${branch.address})` : address.trim(),
+        branchId, promoCode,
+      })
+      if ('error' in result) setError(result.error)
+      else setSuccessOrder(result)
+    } catch {
+      setError('Không thể gửi đơn hàng. Vui lòng thử lại.')
+    } finally {
+      setSubmitting(false)
     }
-    if (fulfillment === 'delivery' && deliveryAddress.trim().length < 5) {
-      next.address = 'Vui lòng nhập địa chỉ giao hàng chi tiết.'
-    }
-    return next
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const v = validate()
-    setErrors(v)
-    if (Object.keys(v).length > 0) return
-
-    setLoading(true)
-
-    // Xác định địa chỉ giao nhận lưu xuống CSDL
-    let computedAddress = ''
-    if (fulfillment === 'delivery') {
-      computedAddress = deliveryAddress.trim()
-    } else {
-      const b = BRANCHES.find((item) => item.id === selectedBranch) || BRANCHES[0]
-      computedAddress = `Nhận tại siêu thị ${b.name} (${b.address})`
-    }
-
-    const result = await placeCartOrder({
-      customerName: name.trim(),
-      phone: phone.trim(),
-      address: computedAddress,
-      branchId: selectedBranch,
-      promoCode: promoKey,
-    })
-
-    setLoading(false)
-
-    if ('error' in result) {
-      setErrors({ form: result.error })
-      return
-    }
-
-    setSuccessOrder(result)
-  }
-
-  // Màn hình khi đặt hàng thành công
-  if (successOrder) {
-    return (
-      <div className="flex min-h-screen flex-col bg-slate-50 text-foreground">
-        <AppHeader />
-
-        <main className="flex flex-1 items-center justify-center p-4 py-12">
-          <div className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 text-center shadow-xl sm:p-8 animate-in fade-in zoom-in-95">
-            <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 ring-8 ring-emerald-50">
-              <CheckCircle2 className="size-8" />
-            </div>
-            <h1 className="mt-4 text-2xl font-black text-foreground">Đặt Hàng Thành Công!</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Nhân viên siêu thị Điện Máy Xanh sẽ sớm liên hệ số <strong className="text-foreground">{successOrder.phone}</strong> để xác nhận giao hàng.
-            </p>
-
-            <div className="my-5 divide-y divide-border rounded-2xl border border-border bg-secondary/30 p-4 text-left text-xs">
-              <div className="flex justify-between pb-2.5">
-                <span className="text-muted-foreground">Mã đơn hàng:</span>
-                <span className="font-mono text-sm font-extrabold text-primary">#{successOrder.id}</span>
-              </div>
-              <div className="flex justify-between py-2.5">
-                <span className="text-muted-foreground">Người nhận:</span>
-                <span className="font-bold text-foreground">{successOrder.customerName}</span>
-              </div>
-              <div className="flex justify-between py-2.5">
-                <span className="text-muted-foreground">Hình thức nhận hàng:</span>
-                <span className="font-semibold text-foreground max-w-xs text-right truncate">
-                  {successOrder.address}
-                </span>
-              </div>
-              <div className="flex justify-between py-2.5">
-                <span className="text-muted-foreground">Phương thức thanh toán:</span>
-                <span className="font-bold text-foreground">Tiền mặt khi nhận hàng (COD)</span>
-              </div>
-              <div className="flex items-baseline justify-between pt-2.5 text-sm">
-                <span className="font-bold text-foreground">Tổng tiền thanh toán:</span>
-                <span className="tabular text-lg font-extrabold text-price">{formatVND(successOrder.total)}</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2.5 sm:flex-row">
-              <Link
-                href="/orders"
-                className="flex flex-1 h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-card text-xs font-bold text-foreground transition-all hover:bg-secondary"
-              >
-                <Package className="size-3.5 text-primary" />
-                <span>Xem đơn hàng vừa đặt</span>
-              </Link>
-              <Link
-                href="/"
-                className="flex flex-1 h-11 items-center justify-center rounded-xl bg-primary text-xs font-bold text-white shadow-sm transition-all hover:bg-primary-deep"
-              >
-                Tiếp tục mua sắm
-              </Link>
-            </div>
-          </div>
-        </main>
-
-        <SiteFooter />
-      </div>
-    )
   }
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-foreground">
       <AppHeader />
-
-      <main className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col gap-6 px-4 py-8 md:px-8">
-        <div className="border-b border-border pb-3">
-          <h1 className="text-2xl font-black text-foreground">Thanh Toán & Đặt Hàng</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Phương thức thanh toán tiền mặt (COD) an toàn — Nhận hàng, kiểm tra máy ưng ý mới thanh toán.
-          </p>
-        </div>
-
-        {cart.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
-            <ShoppingBag className="mx-auto size-12 text-muted-foreground" />
-            <h2 className="mt-3 text-base font-bold text-foreground">Giỏ hàng đang trống</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Vui lòng chọn sản phẩm vào giỏ trước khi thanh toán.</p>
-            <Link
-              href="/"
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-deep"
-            >
-              <ArrowLeft className="size-3.5" /> Quay về xem sản phẩm
-            </Link>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-            {/* CỘT TRÁI: THÔNG TIN GIAO NHẬN & THANH TOÁN */}
-            <div className="flex flex-col gap-5">
-              {/* 1. THÔNG TIN NGƯỜI NHẬN */}
-              <section className="rounded-2xl border border-border bg-card p-5 shadow-xs">
-                <h2 className="flex items-center gap-2 border-b border-border pb-3 text-sm font-extrabold text-foreground">
-                  <User className="size-4 text-primary" />
-                  1. Thông tin người nhận hàng
-                </h2>
-
-                <div className="mt-4 grid gap-3.5 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-foreground">Họ và tên *</label>
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Nguyễn Văn An"
-                      className="h-10 rounded-xl border border-border bg-card px-3 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none"
-                    />
-                    {errors.name && <p className="text-[11px] font-semibold text-rose-600">{errors.name}</p>}
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-foreground">Số điện thoại nhận hàng *</label>
-                    <input
-                      type="tel"
-                      required
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="0901 234 567"
-                      className="tabular h-10 rounded-xl border border-border bg-card px-3 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none"
-                    />
-                    {errors.phone && <p className="text-[11px] font-semibold text-rose-600">{errors.phone}</p>}
-                  </div>
-                </div>
-              </section>
-
-              {/* 2. HÌNH THỨC NHẬN HÀNG */}
-              <section className="rounded-2xl border border-border bg-card p-5 shadow-xs">
-                <h2 className="flex items-center gap-2 border-b border-border pb-3 text-sm font-extrabold text-foreground">
-                  <Truck className="size-4 text-primary" />
-                  2. Hình thức nhận hàng
-                </h2>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setFulfillment('delivery')}
-                    className={cn(
-                      'flex items-center justify-center gap-2 rounded-xl border p-3 text-xs font-bold transition-all',
-                      fulfillment === 'delivery'
-                        ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/20'
-                        : 'border-border bg-card text-muted-foreground hover:bg-secondary/50',
-                    )}
-                  >
-                    <Truck className="size-4" />
-                    <span>Giao hàng tận nơi</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFulfillment('pickup')}
-                    className={cn(
-                      'flex items-center justify-center gap-2 rounded-xl border p-3 text-xs font-bold transition-all',
-                      fulfillment === 'pickup'
-                        ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/20'
-                        : 'border-border bg-card text-muted-foreground hover:bg-secondary/50',
-                    )}
-                  >
-                    <Store className="size-4" />
-                    <span>Nhận tại siêu thị</span>
-                  </button>
-                </div>
-
-                {fulfillment === 'delivery' ? (
-                  <div className="mt-4 flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-foreground">Địa chỉ giao hàng chi tiết *</label>
-                    <div className="relative">
-                      <MapPin className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        type="text"
-                        required
-                        value={deliveryAddress}
-                        onChange={(e) => setDeliveryAddress(e.target.value)}
-                        placeholder="Số nhà, tên đường, phường/xã, quận/huyện..."
-                        className="h-10 w-full rounded-xl border border-border bg-card pr-3 pl-9 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none"
-                      />
-                    </div>
-                    {errors.address && <p className="text-[11px] font-semibold text-rose-600">{errors.address}</p>}
-                  </div>
-                ) : (
-                  <div className="mt-4 flex flex-col gap-2">
-                    <label className="text-xs font-bold text-foreground">Chọn siêu thị ĐMX nhận hàng:</label>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {BRANCHES.map((b) => {
-                        const active = selectedBranch === b.id
-                        return (
-                          <label
-                            key={b.id}
-                            className={cn(
-                              'flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition-colors',
-                              active ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-card hover:bg-secondary/30',
-                            )}
-                          >
-                            <input
-                              type="radio"
-                              name="branchOption"
-                              checked={active}
-                              onChange={() => setSelectedBranch(b.id)}
-                              className="mt-0.5 size-4 text-primary"
-                            />
-                            <div className="text-xs">
-                              <span className="block font-bold text-foreground">{b.name} ({b.district})</span>
-                              <span className="mt-0.5 block text-[11px] text-muted-foreground">{b.address}</span>
-                            </div>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </section>
-
-              {/* 3. PHƯƠNG THỨC THANH TOÁN (DUY NHẤT COD) */}
-              <section className="rounded-2xl border border-border bg-card p-5 shadow-xs">
-                <h2 className="flex items-center gap-2 border-b border-border pb-3 text-sm font-extrabold text-foreground">
-                  <Wallet className="size-4 text-primary" />
-                  3. Phương thức thanh toán
-                </h2>
-
-                <div className="mt-4 rounded-xl border-2 border-primary/40 bg-primary/5 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-white">
-                        <Wallet className="size-4" />
-                      </div>
-                      <div>
-                        <span className="text-xs font-extrabold text-foreground">
-                          Thanh toán tiền mặt khi nhận hàng (COD)
-                        </span>
-                        <span className="ml-2 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                          Phổ biến & An toàn
-                        </span>
-                      </div>
-                    </div>
-                    <Check className="size-5 text-primary" />
-                  </div>
-                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                    Quý khách nhận thiết bị, kiểm tra hàng mới chính hãng 100% và chạy thử ưng ý mới thanh toán tiền mặt cho nhân viên giao hàng.
-                  </p>
-                </div>
-              </section>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:px-8">
+        {customer?.role === 'ADMIN' ? (
+          <section className="mx-auto max-w-md rounded-xl border border-border bg-card p-6 text-center">
+            <h1 className="text-lg font-bold">Tài khoản Quản trị viên</h1>
+            <p className="mt-2 text-sm text-muted-foreground">Tài khoản Quản trị viên chỉ phục vụ vận hành hệ thống, không thực hiện đặt hàng trực tiếp.</p>
+            <div className="mt-5 flex justify-center gap-4 text-sm font-semibold text-primary">
+              <Link href="/dashboard">Quản trị CSDL</Link><Link href="/">Về cửa hàng</Link>
             </div>
-
-            {/* CỘT PHẢI: TÓM TẮT ĐƠN HÀNG & NÚT BẤM */}
-            <aside className="flex flex-col gap-4">
-              <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
-                <h2 className="border-b border-border pb-3 text-sm font-extrabold text-foreground">
-                  Đơn hàng ({cartCount} món)
-                </h2>
-
-                {/* Danh sách món hàng tóm tắt */}
-                <div className="my-3.5 max-h-56 divide-y divide-border overflow-y-auto">
-                  {cart.map(({ product, quantity }) => (
-                    <div key={product.sku} className="flex items-center justify-between py-2 text-xs">
-                      <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                        <img
-                          src={product.image || '/placeholder.svg'}
-                          alt=""
-                          className="size-9 rounded-md bg-secondary object-contain shrink-0"
-                        />
-                        <div className="truncate">
-                          <span className="block truncate font-semibold text-foreground">{product.name}</span>
-                          <span className="text-[11px] text-muted-foreground">Số lượng: {quantity}</span>
-                        </div>
+          </section>
+        ) : successOrder ? (
+          <section className="mx-auto max-w-2xl rounded-xl border border-border bg-card p-6">
+            <h1 className="text-2xl font-bold">Đặt hàng thành công</h1>
+            <dl className="mt-5 space-y-2 text-sm">
+              <div className="flex justify-between gap-4"><dt>Mã đơn hàng</dt><dd className="tabular font-mono font-semibold">#{successOrder.id}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Khách hàng</dt><dd>{successOrder.customerName}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Số điện thoại</dt><dd className="tabular">{successOrder.phone}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Chi nhánh xuất kho</dt><dd>{getBranch(successOrder.branchId).name}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Địa chỉ nhận hàng</dt><dd className="max-w-xs text-right">{successOrder.address}</dd></div>
+            </dl>
+            <ul className="mt-5 divide-y divide-border border-y border-border text-sm">
+              {successOrder.items.map((item, index) => (
+                <li key={`${item.sku}-${index}`} className="flex justify-between gap-4 py-3">
+                  <span>{item.name} <span className="tabular text-muted-foreground">× {item.quantity}</span></span>
+                  <span className="tabular whitespace-nowrap">{formatVND(item.quantity * item.unitPrice)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 flex justify-between font-bold">Tổng thanh toán <span className="tabular text-price">{formatVND(successOrder.total)}</span></p>
+            <div className="mt-6 flex flex-wrap gap-4 text-sm font-semibold text-primary">
+              <Link href="/orders">Tra cứu đơn hàng</Link><Link href="/">Về cửa hàng</Link><Link href="/dashboard">Quản trị CSDL</Link>
+            </div>
+          </section>
+        ) : (
+          <>
+            <h1 className="mb-6 text-2xl font-bold">Xác nhận đơn hàng</h1>
+            {cart.length === 0 ? (
+              <p className="text-sm">Giỏ hàng đang trống. <Link href="/" className="font-semibold text-primary">Chọn sản phẩm</Link></p>
+            ) : (
+              <form onSubmit={handleSubmit} className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+                <div className="space-y-6">
+                  <section className="rounded-xl border border-border bg-card p-5">
+                    <h2 className="text-base font-bold">Thông tin khách hàng</h2>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <label className="text-sm font-medium">Họ và tên
+                        <input className={inputClass} autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} />
+                      </label>
+                      <label className="text-sm font-medium">Số điện thoại
+                        <input className={`${inputClass} tabular`} type="tel" autoComplete="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} />
+                      </label>
+                    </div>
+                  </section>
+                  <section className="rounded-xl border border-border bg-card p-5">
+                    <h2 className="text-base font-bold">Chi nhánh và địa chỉ nhận hàng</h2>
+                    <fieldset className="mt-4 flex flex-wrap gap-5 text-sm">
+                      <legend className="sr-only">Hình thức nhận hàng</legend>
+                      <label className="flex items-center gap-2"><input type="radio" name="fulfillment" checked={fulfillment === 'pickup'} onChange={() => setFulfillment('pickup')} /> Nhận tại siêu thị</label>
+                      <label className="flex items-center gap-2"><input type="radio" name="fulfillment" checked={fulfillment === 'delivery'} onChange={() => setFulfillment('delivery')} /> Giao hàng tận nơi</label>
+                    </fieldset>
+                    <fieldset className="mt-5">
+                      <legend className="text-sm font-semibold">Chọn chi nhánh xuất kho</legend>
+                      <div className="mt-2 divide-y divide-border border-y border-border">
+                        {BRANCHES.map((branch) => (
+                          <label key={branch.id} className="flex cursor-pointer items-start gap-3 py-3 text-sm">
+                            <input className="mt-1" type="radio" name="branch" checked={branchId === branch.id} onChange={() => setBranchId(branch.id)} />
+                            <span className="min-w-0 flex-1"><span className="block font-semibold">{branch.name}</span><span className="block text-muted-foreground">{branch.address}</span>
+                              {cart.map(({ product, quantity }) => (
+                                <span key={product.sku} className="tabular block text-xs text-muted-foreground">{product.sku}: còn {product.stock[branch.id]} / cần {quantity}</span>
+                              ))}
+                            </span>
+                          </label>
+                        ))}
                       </div>
-                      <span className="font-bold text-foreground tabular shrink-0">
-                        {formatVND(product.price * quantity)}
-                      </span>
-                    </div>
-                  ))}
+                    </fieldset>
+                    {fulfillment === 'delivery' && (
+                      <label className="mt-4 block text-sm font-medium">Địa chỉ nhận hàng
+                        <input className={inputClass} autoComplete="street-address" required value={address} onChange={(e) => setAddress(e.target.value)} />
+                      </label>
+                    )}
+                  </section>
                 </div>
-
-                {/* Mã giảm giá */}
-                <div className="border-t border-border pt-3">
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Tag className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        type="text"
-                        value={promoInput}
-                        onChange={(e) => setPromoInput(e.target.value)}
-                        placeholder="Mã giảm giá (MWG5, TET2027)"
-                        className="h-9 w-full rounded-lg border border-border bg-card pr-3 pl-8 text-xs font-medium uppercase focus:border-primary focus:outline-none"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setPromo(promoInput.trim().toUpperCase())}
-                      className="rounded-lg bg-secondary px-3 text-xs font-bold text-foreground hover:bg-secondary/80"
-                    >
-                      Áp dụng
-                    </button>
-                  </div>
-                </div>
-
-                {/* Chi tiết tiền */}
-                <div className="mt-4 space-y-2 border-t border-border pt-3 text-xs">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Tạm tính:</span>
-                    <span className="tabular font-medium text-foreground">{formatVND(subtotal)}</span>
-                  </div>
-                  {discount > 0 && (
-                    <div className="flex justify-between font-semibold text-emerald-600">
-                      <span>Giảm giá khuyến mãi:</span>
-                      <span className="tabular">-{formatVND(discount)}</span>
-                    </div>
-                  )}
-                  <div className="flex items-baseline justify-between border-t border-border pt-3 text-sm">
-                    <span className="font-extrabold text-foreground">Tổng thanh toán:</span>
-                    <span className="tabular text-xl font-black text-price">{formatVND(total)}</span>
-                  </div>
-                </div>
-
-                {errors.form && (
-                  <p className="mt-3 rounded-lg bg-rose-50 p-2 text-center text-xs font-semibold text-rose-600">
-                    {errors.form}
-                  </p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading || quote.loading}
-                  className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent text-sm font-black text-foreground shadow-sm transition-all hover:bg-amber-400 active:scale-[0.99] disabled:opacity-50"
-                >
-                  {loading ? 'Đang gửi đơn hàng xuống MySQL...' : 'ĐẶT HÀNG (TIỀN MẶT COD)'}
-                </button>
-
-                <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                  Bằng việc bấm Đặt hàng, quý khách đồng ý với điều khoản mua sắm của Điện Máy Xanh.
-                </p>
-              </div>
-
-              <Link
-                href="/cart"
-                className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
-              >
-                <ArrowLeft className="size-3.5" /> Quay lại chỉnh sửa giỏ hàng
-              </Link>
-            </aside>
-          </form>
+                <section className="rounded-xl border border-border bg-card p-5">
+                  <div className="flex items-center justify-between gap-2"><h2 className="text-base font-bold">Tóm tắt đơn hàng</h2><Link href="/cart" className="text-sm font-semibold text-primary">Sửa giỏ hàng</Link></div>
+                  <ul className="mt-3 divide-y divide-border">
+                    {cart.map(({ product, quantity }) => (
+                      <li key={product.sku} className="flex gap-3 py-3 text-sm">
+                        <img src={product.image || '/placeholder.svg'} alt="" className="size-14 shrink-0 object-contain" />
+                        <div className="min-w-0 flex-1"><p className="font-medium">{product.name}</p><p className="tabular font-mono text-xs text-muted-foreground">{product.sku}</p><p className="tabular text-muted-foreground">{quantity} × {formatVND(product.price)}</p></div>
+                      </li>
+                    ))}
+                  </ul>
+                  <label className="mt-3 block text-sm font-medium">Mã khuyến mãi
+                    <input className={`${inputClass} uppercase`} value={promo} onChange={(e) => setPromo(e.target.value)} placeholder="MWG5 hoặc TET2027" />
+                  </label>
+                  {promoCode && <p aria-live="polite" className="mt-1 text-xs text-muted-foreground">{quote.loading ? 'Đang kiểm tra...' : quote.promoLabel || quote.promoMessage}</p>}
+                  <dl className="mt-4 space-y-2 border-t border-border pt-4 text-sm">
+                    <div className="flex justify-between"><dt>Tạm tính</dt><dd className="tabular">{quote.loading ? 'Đang tính...' : formatVND(quote.subtotal)}</dd></div>
+                    <div className="flex justify-between"><dt>Giảm giá</dt><dd className="tabular">{formatVND(quote.discount)}</dd></div>
+                    <div className="flex justify-between border-t border-border pt-3 font-bold"><dt>Tổng thanh toán</dt><dd className="tabular text-lg text-price">{formatVND(quote.total)}</dd></div>
+                  </dl>
+                  {(error || quote.error) && <p role="alert" className="mt-4 rounded-lg bg-danger-soft p-3 text-sm text-danger-ink">{error || quote.error}</p>}
+                  <button type="submit" disabled={submitting || quote.loading || !!quote.error} className="mt-4 w-full rounded-lg bg-primary px-4 py-3 text-sm font-bold text-primary-foreground hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-50">
+                    {submitting ? 'Đang gửi đơn hàng...' : 'Xác nhận đặt hàng'}
+                  </button>
+                </section>
+              </form>
+            )}
+          </>
         )}
       </main>
-
       <SiteFooter />
     </div>
   )

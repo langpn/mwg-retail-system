@@ -1,7 +1,24 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { api, ApiError } from './api'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+  vi.resetModules()
+})
+
+it('links to MVC on the backend host when the API uses a separate origin', async () => {
+  vi.resetModules()
+  vi.stubEnv('NEXT_PUBLIC_API_BASE', 'http://localhost:8088/api/v1')
+  const { MVC_URL } = await import('./api')
+  expect(MVC_URL).toBe('http://localhost:8088/mvc/catalog')
+})
+
+it('links to MVC on the current origin when the API uses a relative URL', async () => {
+  vi.stubEnv('NEXT_PUBLIC_API_BASE', '/api/v1')
+  const { MVC_URL } = await import('./api')
+  expect(MVC_URL).toBe('/mvc/catalog')
+})
 
 it('does not classify a reachable server with an error response as offline', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response('{"error":"unavailable"}', { status: 503 })))
