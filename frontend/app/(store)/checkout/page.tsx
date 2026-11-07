@@ -194,7 +194,7 @@ function CheckoutContent() {
 
             <div className="flex flex-col gap-2.5 sm:flex-row">
               <Link
-                href="/orders"
+                href={`/orders?phone=${encodeURIComponent(successOrder.phone)}`}
                 className="flex flex-1 h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-card text-xs font-bold text-foreground transition-all hover:bg-secondary"
               >
                 <Package className="size-3.5 text-primary" />

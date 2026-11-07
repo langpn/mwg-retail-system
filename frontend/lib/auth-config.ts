@@ -6,6 +6,13 @@
 /** Khóa localStorage lưu phiên khách hàng / quản trị viên. */
 export const CUSTOMER_STORAGE_KEY = 'mwg_customer_v1'
 
+/**
+ * Khóa localStorage lưu số điện thoại của đơn hàng vừa đặt gần nhất.
+ * Mục đích: khách mua hàng không cần đăng nhập (guest checkout) vẫn xem lại được
+ * đơn của mình ở trang /orders mà không phải gõ lại số điện thoại.
+ */
+export const LAST_ORDER_PHONE_STORAGE_KEY = 'mwg_last_order_phone_v1'
+
 /** Số điện thoại (hoặc định danh) được cấp quyền Quản trị viên. */
 export const ADMIN_PHONES = ['0900000000', '0987654321', 'admin']
 

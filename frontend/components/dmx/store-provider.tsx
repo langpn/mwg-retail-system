@@ -19,7 +19,7 @@ import {
   CATEGORY_ID_TO_CODE,
 } from '@/lib/catalog'
 import { submitOrder, type OrderItemInput } from '@/lib/order-service'
-import { CUSTOMER_STORAGE_KEY } from '@/lib/auth-config'
+import { CUSTOMER_STORAGE_KEY, LAST_ORDER_PHONE_STORAGE_KEY } from '@/lib/auth-config'
 
 export type ViewTab = 'catalog' | 'inventory'
 export type SortOption = 'default' | 'price-asc' | 'price-desc' | 'discount'
@@ -102,6 +102,10 @@ interface StoreValue {
   customer: CustomerProfile | null
   loginCustomer: (profile: CustomerProfile) => void
   logoutCustomer: () => void
+  /** Số điện thoại của đơn hàng vừa đặt gần nhất (dùng cho khách mua không cần đăng nhập). */
+  lastOrderPhone: string
+  /** Ghi nhớ số điện thoại vừa đặt hàng để trang /orders tự tra cứu. */
+  rememberOrderPhone: (phone: string) => void
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
@@ -154,6 +158,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const logoutCustomer = useCallback(() => {
     setCustomer(null)
     try { localStorage.removeItem(CUSTOMER_STORAGE_KEY) } catch {}
+  }, [])
+
+  /* ── Số điện thoại của đơn hàng gần nhất (cho khách mua không cần đăng nhập) ── */
+  const [lastOrderPhone, setLastOrderPhone] = useState('')
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LAST_ORDER_PHONE_STORAGE_KEY)
+      if (saved) setLastOrderPhone(saved)
+    } catch {}
+  }, [])
+
+  const rememberOrderPhone = useCallback((phone: string) => {
+    const normalized = phone.trim().replace(/\s/g, '')
+    if (!normalized) return
+    setLastOrderPhone(normalized)
+    try { localStorage.setItem(LAST_ORDER_PHONE_STORAGE_KEY, normalized) } catch {}
   }, [])
 
   /* ── Cart persistence ── */
@@ -443,9 +464,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const placeCartOrder = useCallback(async (input: CartCheckoutInput) => {
     const result = await submit(cart, input)
-    if (!('error' in result)) clearCart()
+    if (!('error' in result)) {
+      rememberOrderPhone(input.phone)
+      clearCart()
+    }
     return result
-  }, [cart, submit, clearCart])
+  }, [cart, submit, clearCart, rememberOrderPhone])
 
   /* ── Confirm order ── */
   const confirmOrder = useCallback(
@@ -505,6 +529,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       customer,
       loginCustomer,
       logoutCustomer,
+      lastOrderPhone,
+      rememberOrderPhone,
     }),
     [
       products, filteredProducts, orders, branchId, category, brands, budget, query,
@@ -514,6 +540,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setTab, setSort, setPage, setPageSize, startOrder, setOrderSku, updateStock,
       placeOrder, confirmOrder, reloadFromBackend, addToCart, updateCartQty,
       removeFromCart, clearCart, placeCartOrder, loginCustomer, logoutCustomer,
+      lastOrderPhone, rememberOrderPhone,
     ],
   )
 
