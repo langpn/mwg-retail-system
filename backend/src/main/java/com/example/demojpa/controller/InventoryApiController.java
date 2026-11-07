@@ -36,7 +36,7 @@ public class InventoryApiController {
 
     /**
      * GET /api/v1/inventory/check?sku=...&district=...
-     * Kiểm tra số lượng tồn kho khả dụng tại một chi nhánh cụ thể (dành cho AI Agent & Client)
+     * Kiểm tra số lượng tồn kho khả dụng theo mã SKU và khu vực quận/huyện
      */
     @GetMapping("/check")
     public ResponseEntity<Inventory> checkInventory(

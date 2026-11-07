@@ -44,6 +44,12 @@ public class StaticPageRoutingFilter extends OncePerRequestFilter {
     /** Tien to REST API - tuyet doi khong duoc dinh tuyen lai. */
     private static final String API_PREFIX = "/api/";
 
+    /** Tien to Spring MVC Controllers (vi du /mvc/catalog) - de DispatcherServlet xu ly. */
+    private static final String MVC_PREFIX = "/mvc";
+
+    /** Tien to H2 Database Console. */
+    private static final String H2_CONSOLE_PREFIX = "/h2-console";
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -85,8 +91,10 @@ public class StaticPageRoutingFilter extends OncePerRequestFilter {
             return null;
         }
 
-        // Khong bao gio dinh tuyen lai REST API.
-        if (clean.startsWith(API_PREFIX)) {
+        // Khong bao gio dinh tuyen lai REST API, Spring MVC Controllers va H2 Console.
+        if (clean.startsWith(API_PREFIX)
+                || clean.equals(MVC_PREFIX) || clean.startsWith(MVC_PREFIX + "/")
+                || clean.equals(H2_CONSOLE_PREFIX) || clean.startsWith(H2_CONSOLE_PREFIX + "/")) {
             return null;
         }
 

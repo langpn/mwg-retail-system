@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST Controller: OrderApiController
@@ -50,12 +51,12 @@ public class OrderApiController {
      * Tạo đơn đặt hàng mới và tự động trừ số lượng tồn kho (HTTP POST)
      */
     @PostMapping
-    public ResponseEntity<CustomerOrder> createOrder(@RequestBody CreateOrderRequest req) {
+    public ResponseEntity<?> createOrder(@RequestBody CreateOrderRequest req) {
         try {
             CustomerOrder order = orderService.createOrder(req);
             return ResponseEntity.status(HttpStatus.CREATED).body(order);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 

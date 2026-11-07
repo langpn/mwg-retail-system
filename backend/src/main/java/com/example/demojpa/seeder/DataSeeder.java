@@ -22,6 +22,8 @@ public class DataSeeder implements CommandLineRunner {
     private final CustomerRepository customerRepo;
     private final PromotionRepository promoRepo;
     private final ProductReviewRepository reviewRepo;
+    private final CustomerOrderRepository orderRepo;
+    private final OrderItemRepository orderItemRepo;
 
     public DataSeeder(
             CategoryRepository categoryRepo,
@@ -31,7 +33,9 @@ public class DataSeeder implements CommandLineRunner {
             InventoryRepository inventoryRepo,
             CustomerRepository customerRepo,
             PromotionRepository promoRepo,
-            ProductReviewRepository reviewRepo
+            ProductReviewRepository reviewRepo,
+            CustomerOrderRepository orderRepo,
+            OrderItemRepository orderItemRepo
     ) {
         this.categoryRepo = categoryRepo;
         this.brandRepo = brandRepo;
@@ -41,6 +45,8 @@ public class DataSeeder implements CommandLineRunner {
         this.customerRepo = customerRepo;
         this.promoRepo = promoRepo;
         this.reviewRepo = reviewRepo;
+        this.orderRepo = orderRepo;
+        this.orderItemRepo = orderItemRepo;
     }
 
     @Override
@@ -150,6 +156,22 @@ public class DataSeeder implements CommandLineRunner {
         // 8. Nạp Đánh giá sản phẩm mẫu (ProductReviews)
         reviewRepo.save(new ProductReview(p1, cust1, 5, "Máy giặt chạy rất êm, vắt khô ráo, nhân viên ĐMX giao hàng và lắp đặt nhanh chóng!"));
         reviewRepo.save(new ProductReview(p4, cust2, 5, "Tủ lạnh làm lạnh đều, tiết kiệm điện năng rõ rệt, màu bạc sang trọng."));
+
+        // 9. Nạp 1 Đơn hàng mẫu và Chi tiết đơn hàng (CustomerOrder & OrderItem) - Hoàn thiện 10/10 bảng
+        CustomerOrder sampleOrder = new CustomerOrder(
+                cust1.getFullName(),
+                cust1.getPhone(),
+                cust1.getAddress(),
+                7115500.0,
+                cust1,
+                promo5
+        );
+        sampleOrder.setStatus("COMPLETED");
+        sampleOrder = orderRepo.save(sampleOrder);
+
+        OrderItem sampleItem = new OrderItem(sampleOrder, p1, 1, p1.getPrice());
+        sampleItem = orderItemRepo.save(sampleItem);
+        sampleOrder.getOrderItems().add(sampleItem);
 
         System.out.println(">>> [DataSeeder] Khoi tao du lieu 10 bang thanh cong 100%!");
     }

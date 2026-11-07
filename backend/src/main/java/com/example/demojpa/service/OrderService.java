@@ -92,20 +92,21 @@ public class OrderService {
                 double itemPrice = product.getPrice();
                 total += itemPrice * qty;
 
-                // Lưu OrderItem
-                OrderItem item = new OrderItem(order, product, qty, itemPrice);
-                orderItemRepo.save(item);
-
-                // Trừ số lượng tồn kho tại chi nhánh nếu có branchId
+                // Trừ số lượng tồn kho tại chi nhánh nếu có branchId (ném ngoại lệ nếu không đủ hàng)
                 if (req.getBranchId() != null) {
                     Optional<Inventory> invOpt = inventoryRepo.findByProduct_IdAndStoreBranch_Id(product.getId(), req.getBranchId());
-                    if (invOpt.isPresent()) {
-                        Inventory inv = invOpt.get();
-                        int newStock = Math.max(0, inv.getQuantity() - qty);
-                        inv.setQuantity(newStock);
-                        inventoryRepo.save(inv);
+                    if (invOpt.isEmpty() || invOpt.get().getQuantity() < qty) {
+                        throw new IllegalArgumentException("Sản phẩm '" + product.getName() + "' không đủ tồn kho tại chi nhánh đã chọn (còn " + (invOpt.map(Inventory::getQuantity).orElse(0)) + ")");
                     }
+                    Inventory inv = invOpt.get();
+                    inv.setQuantity(inv.getQuantity() - qty);
+                    inventoryRepo.save(inv);
                 }
+
+                // Lưu OrderItem và cập nhật danh sách orderItems của order
+                OrderItem item = new OrderItem(order, product, qty, itemPrice);
+                OrderItem savedItem = orderItemRepo.save(item);
+                order.getOrderItems().add(savedItem);
             }
         }
 

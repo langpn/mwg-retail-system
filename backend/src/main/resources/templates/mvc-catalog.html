@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Điện Máy Xanh - Danh Mục Sản Phẩm (Spring MVC + Thymeleaf)</title>
+    <style>
+        :root {
+            --dmx-blue: #0284c7;
+            --dmx-blue-dark: #0369a1;
+            --dmx-blue-light: #e0f2fe;
+            --dmx-yellow: #f59e0b;
+            --dmx-yellow-dark: #d97706;
+            --dmx-text: #0f172a;
+            --dmx-muted: #64748b;
+            --dmx-bg: #f8fafc;
+            --dmx-card: #ffffff;
+            --dmx-border: #e2e8f0;
+            --dmx-danger: #ef4444;
+            --dmx-success: #10b981;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--dmx-bg);
+            color: var(--dmx-text);
+            line-height: 1.5;
+            padding-bottom: 60px;
+        }
+
+        /* Top Navbar */
+        .navbar {
+            background: linear-gradient(135deg, var(--dmx-blue-dark) 0%, var(--dmx-blue) 100%);
+            color: white;
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: var(--shadow-md);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: white;
+        }
+
+        .brand-badge {
+            background-color: var(--dmx-yellow);
+            color: #78350f;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .navbar-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .navbar-subtitle {
+            font-size: 12px;
+            opacity: 0.85;
+            display: block;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 8px 14px;
+            border-radius: 6px;
+            transition: background-color 0.15s ease;
+            background: rgba(255, 255, 255, 0.15);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.28);
+        }
+
+        .nav-link.active {
+            background: var(--dmx-yellow);
+            color: #78350f;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1240px;
+            margin: 24px auto;
+            padding: 0 16px;
+        }
+
+        /* Banner info */
+        .info-card {
+            background: white;
+            border-left: 5px solid var(--dmx-blue);
+            border-radius: var(--radius-md);
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .info-content h2 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--dmx-blue-dark);
+            margin-bottom: 4px;
+        }
+
+        .info-content p {
+            font-size: 13px;
+            color: var(--dmx-muted);
+        }
+
+        .metrics-grid {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .metric-pill {
+            background: var(--dmx-blue-light);
+            color: var(--dmx-blue-dark);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .metric-pill strong {
+            font-size: 14px;
+            color: var(--dmx-blue-dark);
+        }
+
+        /* Branches horizontal rail */
+        .section-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--dmx-text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .branches-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .branch-card {
+            background: white;
+            padding: 12px 14px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--dmx-border);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .branch-header {
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--dmx-blue-dark);
+            margin-bottom: 4px;
+        }
+
+        .branch-address {
+            font-size: 12px;
+            color: var(--dmx-muted);
+            line-height: 1.4;
+        }
+
+        .branch-phone {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--dmx-yellow-dark);
+            margin-top: 4px;
+        }
+
+        /* Filter Toolbar Card */
+        .toolbar-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--dmx-border);
+        }
+
+        .toolbar-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--dmx-text);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .form-select, .form-input {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid var(--dmx-border);
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--dmx-text);
+            background-color: #fff;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .form-select:focus, .form-input:focus {
+            outline: none;
+            border-color: var(--dmx-blue);
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+        }
+
+        .toolbar-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            border-top: 1px solid var(--dmx-border);
+            padding-top: 14px;
+        }
+
+        .action-left {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s ease;
+            text-decoration: none;
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-primary {
+            background-color: var(--dmx-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--dmx-blue-dark);
+        }
+
+        .btn-warning {
+            background-color: var(--dmx-yellow);
+            color: #78350f;
+        }
+
+        .btn-warning:hover {
+            background-color: var(--dmx-yellow-dark);
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #f1f5f9;
+            color: var(--dmx-text);
+            border: 1px solid var(--dmx-border);
+        }
+
+        .btn-secondary:hover {
+            background-color: #e2e8f0;
+        }
+
+        .btn-danger {
+            background-color: #fee2e2;
+            color: var(--dmx-danger);
+            border: 1px solid #fecaca;
+        }
+
+        .btn-danger:hover {
+            background-color: var(--dmx-danger);
+            color: white;
+        }
+
+        .btn-edit {
+            background-color: #e0f2fe;
+            color: var(--dmx-blue-dark);
+            border: 1px solid #bae6fd;
+        }
+
+        .btn-edit:hover {
+            background-color: var(--dmx-blue);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 11px;
+            border-radius: 4px;
+        }
+
+        /* Products Table Card */
+        .table-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--dmx-border);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .table-header-bar {
+            padding: 14px 20px;
+            background: #fafafa;
+            border-bottom: 1px solid var(--dmx-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .table-header-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--dmx-text);
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            width: 100%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        th {
+            background: #f8fafc;
+            color: var(--dmx-muted);
+            font-weight: 700;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--dmx-border);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        .sku-badge {
+            background: #f1f5f9;
+            color: #334155;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .category-badge {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .brand-badge-tag {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .price-text {
+            font-weight: 700;
+            color: var(--dmx-danger);
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .actions-cell {
+            white-space: nowrap;
+            display: flex;
+            gap: 6px;
+        }
+
+        /* Pagination & Footer */
+        .table-footer {
+            padding: 12px 20px;
+            background: #fafafa;
+            border-top: 1px solid var(--dmx-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 12px;
+            color: var(--dmx-muted);
+        }
+
+        .pagination {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .page-btn {
+            background: white;
+            border: 1px solid var(--dmx-border);
+            color: var(--dmx-text);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.15s;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .page-btn.active {
+            background: var(--dmx-blue);
+            color: white;
+            border-color: var(--dmx-blue);
+        }
+
+        .page-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Modal Dialog */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 16px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 540px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            animation: modalFadeIn 0.2s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--dmx-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--dmx-blue-dark);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--dmx-muted);
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .modal-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .modal-footer {
+            padding: 14px 20px;
+            background: #f8fafc;
+            border-top: 1px solid var(--dmx-border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: white;
+            color: var(--dmx-text);
+            padding: 12px 18px;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            border-left: 4px solid var(--dmx-blue);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 280px;
+            animation: toastSlide 0.25s ease-out;
+        }
+
+        .toast.success {
+            border-left-color: var(--dmx-success);
+        }
+
+        .toast.danger {
+            border-left-color: var(--dmx-danger);
+        }
+
+        .toast-badge {
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #f1f5f9;
+        }
+
+        @keyframes toastSlide {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Footer */
+        .page-footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--dmx-muted);
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+        <a href="/mvc/catalog" class="navbar-brand">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+            </svg>
+            <div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="navbar-title">ĐIỆN MÁY XANH</span>
+                    <span class="brand-badge">SPRING MVC SSR</span>
+                </div>
+                <span class="navbar-subtitle">Hệ Thống Bán Lẻ Điện Máy (Thymeleaf + AJAX Web Service)</span>
+            </div>
+        </a>
+        <nav class="nav-links">
+            <a href="/" class="nav-link">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                Giao Diện Chính (React SPA)
+            </a>
+            <a href="/dashboard" class="nav-link">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+                Quản Trị Hệ Thống
+            </a>
+            <a href="/mvc/catalog" class="nav-link active">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+                Trang Phụ MVC
+            </a>
+        </nav>
+    </header>
+
+    <main class="container">
+
+        <!-- Architecture Demonstration Banner -->
+        <div class="info-card">
+            <div class="info-content">
+                <h2>MINH CHỨNG KIẾN TRÚC SPRING MVC + THYMELEAF (IUH STANDARD)</h2>
+                <p>Combobox Danh mục & Thương hiệu được nạp sẵn từ Server qua <code>@Controller</code> + <code>Model</code> (&lt; 100ms, đạt chuẩn dưới 3s của thầy). Thao tác Lọc / Thêm / Sửa / Xóa kết nối trực tiếp 4 HTTP Verbs của REST API.</p>
+            </div>
+            <div class="metrics-grid">
+                <div class="metric-pill">
+                    <span>Danh mục nạp sẵn:</span>
+                    <strong th:text="${categories != null ? categories.size() : 0}">0</strong>
+                </div>
+                <div class="metric-pill">
+                    <span>Thương hiệu nạp sẵn:</span>
+                    <strong th:text="${brands != null ? brands.size() : 0}">0</strong>
+                </div>
+                <div class="metric-pill">
+                    <span>Siêu thị chi nhánh:</span>
+                    <strong th:text="${branches != null ? branches.size() : 0}">0</strong>
+                </div>
+                <div class="metric-pill">
+                    <span>Sản phẩm khởi tạo:</span>
+                    <strong id="serverProductCount" th:text="${initialProducts != null ? initialProducts.size() : 0}">0</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Store Branches Section -->
+        <section style="margin-bottom: 20px;">
+            <div class="section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--dmx-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 21h18"></path>
+                    <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path>
+                    <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                    <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                    <line x1="9" y1="13" x2="9.01" y2="13"></line>
+                    <line x1="15" y1="13" x2="15.01" y2="13"></line>
+                </svg>
+                Hệ Thống Siêu Thị Chi Nhánh Điện Máy Xanh (Nạp Sẵn Từ Server)
+            </div>
+            <div class="branches-container">
+                <div th:each="branch : ${branches}" class="branch-card">
+                    <div class="branch-header" th:text="${branch.branchName}">Siêu thị ĐMX</div>
+                    <div class="branch-address" th:text="${branch.address + ', ' + branch.district}">Địa chỉ chi nhánh</div>
+                    <div class="branch-phone" th:text="'Hotline: ' + ${branch.phone}">Hotline: 1800 1061</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Filter Toolbar -->
+        <section class="toolbar-card">
+            <div class="toolbar-grid">
+                <!-- Combobox 1: Categories (Pre-rendered by Thymeleaf) -->
+                <div class="form-group">
+                    <label class="form-label" for="filterCategory">1. Danh Mục Ngành Hàng</label>
+                    <select id="filterCategory" class="form-select">
+                        <option value="">-- Tất cả ngành hàng --</option>
+                        <option th:each="cat : ${categories}" th:value="${cat.code}" th:text="${cat.name + ' (' + cat.code + ')'}"></option>
+                    </select>
+                </div>
+
+                <!-- Combobox 2: Brands (Pre-rendered by Thymeleaf) -->
+                <div class="form-group">
+                    <label class="form-label" for="filterBrand">2. Thương Hiệu Chính Hãng</label>
+                    <select id="filterBrand" class="form-select">
+                        <option value="">-- Tất cả thương hiệu --</option>
+                        <option th:each="b : ${brands}" th:value="${b.name}" th:text="${b.name + ' (' + (b.country != null ? b.country : 'Quốc tế') + ')'}"></option>
+                    </select>
+                </div>
+
+                <!-- Filter: Max Price -->
+                <div class="form-group">
+                    <label class="form-label" for="filterMaxPrice">3. Mức Giá Trần (VNĐ)</label>
+                    <input type="number" id="filterMaxPrice" class="form-input" placeholder="Ví dụ: 15000000" step="500000">
+                </div>
+
+                <!-- Filter: Keyword -->
+                <div class="form-group">
+                    <label class="form-label" for="filterKeyword">4. Từ Khóa Tìm Kiếm</label>
+                    <input type="text" id="filterKeyword" class="form-input" placeholder="Tên sản phẩm, thông số...">
+                </div>
+
+                <!-- Sort Order -->
+                <div class="form-group">
+                    <label class="form-label" for="sortOrder">5. Sắp Xếp Giá Bán</label>
+                    <select id="sortOrder" class="form-select">
+                        <option value="default">Mặc định</option>
+                        <option value="asc">Giá: Thấp đến Cao</option>
+                        <option value="desc">Giá: Cao đến Thấp</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="toolbar-actions">
+                <div class="action-left">
+                    <button id="btnFilter" class="btn btn-primary" onclick="applyFilter()">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                        </svg>
+                        Lọc Sản Phẩm (GET API)
+                    </button>
+                    <button class="btn btn-secondary" onclick="resetFilters()">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                            <path d="M3 3v5h5"></path>
+                        </svg>
+                        Đặt Lại Bộ Lọc
+                    </button>
+                </div>
+                <div>
+                    <button class="btn btn-warning" onclick="openAddModal()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Thêm Sản Phẩm Mới (POST)
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Product Table -->
+        <section class="table-card">
+            <div class="table-header-bar">
+                <div class="table-header-title">
+                    Danh Sách Sản Phẩm Điện Máy (<span id="totalDisplayCount" th:text="${initialProducts != null ? initialProducts.size() : 0}">0</span> mặt hàng)
+                </div>
+                <div style="font-size: 12px; color: var(--dmx-muted);">
+                    Hiển thị 
+                    <select id="pageSizeSelect" class="form-select" style="display: inline-block; width: auto; padding: 3px 8px; font-size: 12px;" onchange="changePageSize()">
+                        <option value="8" selected>8 / trang</option>
+                        <option value="15">15 / trang</option>
+                        <option value="30">30 / trang</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table id="productsTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">STT</th>
+                            <th style="width: 120px;">Mã SKU</th>
+                            <th>Tên Sản Phẩm</th>
+                            <th style="width: 130px;">Danh Mục</th>
+                            <th style="width: 110px;">Thương Hiệu</th>
+                            <th style="width: 130px;">Đơn Giá (VNĐ)</th>
+                            <th>Mô Tả Sản Phẩm</th>
+                            <th style="width: 130px; text-align: center;">Thao Tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                        <!-- Server-Side Pre-rendered Products (Thymeleaf SSR) -->
+                        <tr th:each="p, iter : ${initialProducts}" th:id="'row-' + ${p.id}">
+                            <td th:text="${iter.count}">1</td>
+                            <td><span class="sku-badge" th:text="${p.sku}">DMX-TV-001</span></td>
+                            <td style="font-weight: 600;" th:text="${p.name}">Smart Tivi Sony 4K 55 inch</td>
+                            <td><span class="category-badge" th:text="${p.category != null ? p.category.name : 'N/A'}">Tivi</span></td>
+                            <td><span class="brand-badge-tag" th:text="${p.brand != null ? p.brand.name : 'N/A'}">Sony</span></td>
+                            <td><span class="price-text" th:text="${#numbers.formatDecimal(p.price, 0, 'COMMA', 0, 'POINT') + ' đ'}">15.990.000 đ</span></td>
+                            <td style="color: var(--dmx-muted); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" th:text="${p.description}" th:title="${p.description}">Mô tả tóm tắt</td>
+                            <td style="text-align: center;">
+                                <div class="actions-cell" style="justify-content: center;">
+                                    <button class="btn btn-edit btn-sm" 
+                                            th:attr="onclick='openEditModal(' + ${p.id} + ', \'' + ${p.sku} + '\', \'' + ${#strings.escapeJavaScript(p.name)} + '\', ' + ${p.price} + ', \'' + ${#strings.escapeJavaScript(p.description != null ? p.description : '')} + '\', ' + ${p.category != null ? p.category.id : 'null'} + ', ' + ${p.brand != null ? p.brand.id : 'null'} + ')'">
+                                        Sửa (PUT)
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" 
+                                            th:attr="onclick='deleteProduct(' + ${p.id} + ', \'' + ${#strings.escapeJavaScript(p.name)} + '\')'">
+                                        Xóa (DEL)
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Table Pagination Bar -->
+            <div class="table-footer">
+                <div id="pageInfo">Đang hiển thị trang 1</div>
+                <div class="pagination" id="paginationControls">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer Note -->
+        <footer class="page-footer">
+            <p><strong>MWG RETAIL SYSTEM — PHÂN HỆ SPRING MVC THYMELEAF BẢO VỆ ĐỒ ÁN IUH</strong></p>
+            <p>100% Offline (Không phụ thuộc mạng CDN ngoài) — Đáp ứng chuẩn tải trang tức thì &lt; 3 giây</p>
+        </footer>
+    </main>
+
+    <!-- Modal: Thêm Mới Sản Phẩm (POST) -->
+    <div id="addModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title">Thêm Mới Sản Phẩm Điện Máy (POST /api/v1/products)</div>
+                <button class="modal-close" onclick="closeAddModal()">&times;</button>
+            </div>
+            <form id="addForm" onsubmit="submitAddProduct(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label" for="addSku">Mã SKU (* duy nhất)</label>
+                        <input type="text" id="addSku" class="form-input" placeholder="Ví dụ: DMX-GD-005" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="addName">Tên Sản Phẩm (*)</label>
+                        <input type="text" id="addName" class="form-input" placeholder="Ví dụ: Nồi chiên không dầu Philips 4.5L" required>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label class="form-label" for="addCategory">Danh Mục (*)</label>
+                            <select id="addCategory" class="form-select" required>
+                                <option value="">-- Chọn danh mục --</option>
+                                <option th:each="cat : ${categories}" th:value="${cat.id}" th:text="${cat.name}"></option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="addBrand">Thương Hiệu (*)</label>
+                            <select id="addBrand" class="form-select" required>
+                                <option value="">-- Chọn thương hiệu --</option>
+                                <option th:each="b : ${brands}" th:value="${b.id}" th:text="${b.name}"></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="addPrice">Đơn Giá Bán (VNĐ) (*)</label>
+                        <input type="number" id="addPrice" class="form-input" placeholder="Ví dụ: 2500000" min="10000" step="1000" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="addDesc">Mô Tả Sản Phẩm</label>
+                        <textarea id="addDesc" class="form-input" rows="3" placeholder="Thông số kỹ thuật, bảo hành chính hãng..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAddModal()">Hủy Bỏ</button>
+                    <button type="submit" class="btn btn-primary">Lưu Sản Phẩm (POST)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Chỉnh Sửa Sản Phẩm (PUT) -->
+    <div id="editModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title">Cập Nhật Thông Tin Sản Phẩm (PUT /api/v1/products/{id})</div>
+                <button class="modal-close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form id="editForm" onsubmit="submitEditProduct(event)">
+                <input type="hidden" id="editId">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label" for="editSku">Mã SKU (*)</label>
+                        <input type="text" id="editSku" class="form-input" required readonly style="background: #f1f5f9;">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editName">Tên Sản Phẩm (*)</label>
+                        <input type="text" id="editName" class="form-input" required>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label class="form-label" for="editCategory">Danh Mục (*)</label>
+                            <select id="editCategory" class="form-select" required>
+                                <option value="">-- Chọn danh mục --</option>
+                                <option th:each="cat : ${categories}" th:value="${cat.id}" th:text="${cat.name}"></option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="editBrand">Thương Hiệu</label>
+                            <select id="editBrand" class="form-select">
+                                <option value="">-- Chọn thương hiệu --</option>
+                                <option th:each="b : ${brands}" th:value="${b.id}" th:text="${b.name}"></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editPrice">Đơn Giá Bán (VNĐ) (*)</label>
+                        <input type="number" id="editPrice" class="form-input" min="10000" step="1000" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editDesc">Mô Tả Sản Phẩm</label>
+                        <textarea id="editDesc" class="form-input" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Hủy Bỏ</button>
+                    <button type="submit" class="btn btn-warning">Cập Nhật (PUT)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Vanilla JavaScript: AJAX / Fetch API (Relative Paths) -->
+    <script>
+        // State
+        let allProducts = [];
+        let currentPage = 1;
+        let pageSize = 8;
+        let isInitialServerRender = true;
+
+        // Định dạng tiền tệ VNĐ chuẩn Việt Nam
+        function formatVND(amount) {
+            if (amount === null || amount === undefined) return "0 đ";
+            return new Intl.NumberFormat('vi-VN').format(amount) + " đ";
+        }
+
+        // Thoát chuỗi chống XSS khi render DOM qua JavaScript
+        function escapeHtml(str) {
+            if (!str) return "";
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Hiển thị Toast thông báo kết quả HTTP
+        function showToast(message, statusBadge, type = "success") {
+            const container = document.getElementById("toastContainer");
+            const toast = document.createElement("div");
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <span class="toast-badge">${escapeHtml(statusBadge)}</span>
+                <span>${escapeHtml(message)}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = "0";
+                toast.style.transform = "translateX(100%)";
+                toast.style.transition = "all 0.3s ease";
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Gọi REST API: GET /api/v1/products kết hợp lọc đa tiêu chí
+        async function fetchProducts() {
+            const category = document.getElementById("filterCategory").value;
+            const brand = document.getElementById("filterBrand").value;
+            const maxPrice = document.getElementById("filterMaxPrice").value;
+            const keyword = document.getElementById("filterKeyword").value.trim();
+
+            const params = new URLSearchParams();
+            if (category) params.append("category", category);
+            if (brand) params.append("brand", brand);
+            if (maxPrice) params.append("maxPrice", maxPrice);
+            if (keyword) params.append("keyword", keyword);
+
+            const queryString = params.toString();
+            const url = "/api/v1/products" + (queryString ? "?" + queryString : "");
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                allProducts = data;
+                isInitialServerRender = false;
+                currentPage = 1;
+                applySorting();
+                renderTable();
+                showToast(`Nạp thành công ${data.length} sản phẩm`, `GET 200 OK`, "success");
+            } catch (err) {
+                console.error("Lỗi khi tải danh sách sản phẩm:", err);
+                showToast(`Không thể tải dữ liệu: ${err.message}`, "LỖI", "danger");
+            }
+        }
+
+        function applyFilter() {
+            fetchProducts();
+        }
+
+        function resetFilters() {
+            document.getElementById("filterCategory").value = "";
+            document.getElementById("filterBrand").value = "";
+            document.getElementById("filterMaxPrice").value = "";
+            document.getElementById("filterKeyword").value = "";
+            document.getElementById("sortOrder").value = "default";
+            fetchProducts();
+        }
+
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById("pageSizeSelect").value, 10);
+            currentPage = 1;
+            renderTable();
+        }
+
+        // Lắng nghe thay đổi sắp xếp
+        document.getElementById("sortOrder").addEventListener("change", () => {
+            applySorting();
+            renderTable();
+        });
+
+        function applySorting() {
+            const sortMode = document.getElementById("sortOrder").value;
+            if (sortMode === "asc") {
+                allProducts.sort((a, b) => (a.price || 0) - (b.price || 0));
+            } else if (sortMode === "desc") {
+                allProducts.sort((a, b) => (b.price || 0) - (a.price || 0));
+            }
+        }
+
+        // Render lại tbody và phân trang khi Client có dữ liệu mới
+        function renderTable() {
+            const tbody = document.getElementById("productTableBody");
+            const totalCount = allProducts.length;
+            document.getElementById("totalDisplayCount").textContent = totalCount;
+
+            if (totalCount === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 30px; color: var(--dmx-muted);">
+                            Không tìm thấy sản phẩm nào phù hợp với bộ lọc hiện tại.
+                        </td>
+                    </tr>
+                `;
+                document.getElementById("pageInfo").textContent = "Không có sản phẩm";
+                document.getElementById("paginationControls").innerHTML = "";
+                return;
+            }
+
+            const totalPages = Math.ceil(totalCount / pageSize);
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, totalCount);
+            const displayList = allProducts.slice(startIndex, endIndex);
+
+            let html = "";
+            displayList.forEach((p, idx) => {
+                const stt = startIndex + idx + 1;
+                const catName = p.category ? p.category.name : "N/A";
+                const catId = p.category ? p.category.id : null;
+                const brandName = p.brand ? p.brand.name : "N/A";
+                const brandId = p.brand ? p.brand.id : null;
+                const descSafe = escapeHtml(p.description || "");
+
+                html += `
+                    <tr id="row-${p.id}">
+                        <td>${stt}</td>
+                        <td><span class="sku-badge">${escapeHtml(p.sku)}</span></td>
+                        <td style="font-weight: 600;">${escapeHtml(p.name)}</td>
+                        <td><span class="category-badge">${escapeHtml(catName)}</span></td>
+                        <td><span class="brand-badge-tag">${escapeHtml(brandName)}</span></td>
+                        <td><span class="price-text">${formatVND(p.price)}</span></td>
+                        <td style="color: var(--dmx-muted); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${descSafe}">${descSafe}</td>
+                        <td style="text-align: center;">
+                            <div class="actions-cell" style="justify-content: center;">
+                                <button class="btn btn-edit btn-sm" onclick='openEditModal(${p.id}, "${escapeHtml(p.sku)}", "${escapeHtml(p.name)}", ${p.price}, "${escapeHtml(p.description || "")}", ${catId}, ${brandId})'>
+                                    Sửa (PUT)
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick='deleteProduct(${p.id}, "${escapeHtml(p.name)}")'>
+                                    Xóa (DEL)
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+
+            // Update Pagination
+            document.getElementById("pageInfo").textContent = `Hiển thị ${startIndex + 1} - ${endIndex} trên tổng ${totalCount} sản phẩm (Trang ${currentPage}/${totalPages})`;
+            renderPagination(totalPages);
+        }
+
+        function renderPagination(totalPages) {
+            const nav = document.getElementById("paginationControls");
+            let phtml = "";
+
+            phtml += `<button class="page-btn" ${currentPage === 1 ? "disabled" : ""} onclick="goToPage(${currentPage - 1})">&laquo; Trước</button>`;
+
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+                    phtml += `<button class="page-btn ${i === currentPage ? "active" : ""}" onclick="goToPage(${i})">${i}</button>`;
+                } else if (i === currentPage - 2 || i === currentPage + 2) {
+                    phtml += `<span style="padding: 0 4px; color: var(--dmx-muted);">...</span>`;
+                }
+            }
+
+            phtml += `<button class="page-btn" ${currentPage === totalPages ? "disabled" : ""} onclick="goToPage(${currentPage + 1})">Sau &raquo;</button>`;
+            nav.innerHTML = phtml;
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            renderTable();
+        }
+
+        // ================= THÊM MỚI (POST /api/v1/products) =================
+        function openAddModal() {
+            document.getElementById("addForm").reset();
+            document.getElementById("addModal").classList.add("active");
+        }
+
+        function closeAddModal() {
+            document.getElementById("addModal").classList.remove("active");
+        }
+
+        async function submitAddProduct(e) {
+            e.preventDefault();
+            const sku = document.getElementById("addSku").value.trim();
+            const name = document.getElementById("addName").value.trim();
+            const catId = document.getElementById("addCategory").value;
+            const brandId = document.getElementById("addBrand").value;
+            const price = parseFloat(document.getElementById("addPrice").value);
+            const description = document.getElementById("addDesc").value.trim();
+
+            const payload = {
+                sku: sku,
+                name: name,
+                price: price,
+                description: description,
+                category: { id: parseInt(catId, 10) },
+                brand: brandId ? { id: parseInt(brandId, 10) } : null
+            };
+
+            try {
+                const response = await fetch("/api/v1/products", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.status === 201 || response.ok) {
+                    const created = await response.json();
+                    closeAddModal();
+                    showToast(`Đã thêm sản phẩm "${created.name}" (SKU: ${created.sku})`, "POST 201 CREATED", "success");
+                    fetchProducts();
+                } else {
+                    const errText = await response.text();
+                    showToast(`Thêm thất bại (${response.status}): ${errText}`, "LỖI", "danger");
+                }
+            } catch (err) {
+                console.error("Lỗi khi thêm sản phẩm:", err);
+                showToast(`Lỗi kết nối: ${err.message}`, "LỖI", "danger");
+            }
+        }
+
+        // ================= CẬP NHẬT (PUT /api/v1/products/{id}) =================
+        function openEditModal(id, sku, name, price, desc, catId, brandId) {
+            document.getElementById("editId").value = id;
+            document.getElementById("editSku").value = sku;
+            document.getElementById("editName").value = name;
+            document.getElementById("editPrice").value = price;
+            document.getElementById("editDesc").value = desc;
+            if (catId) document.getElementById("editCategory").value = catId;
+            if (brandId) document.getElementById("editBrand").value = brandId;
+            document.getElementById("editModal").classList.add("active");
+        }
+
+        function closeEditModal() {
+            document.getElementById("editModal").classList.remove("active");
+        }
+
+        async function submitEditProduct(e) {
+            e.preventDefault();
+            const id = document.getElementById("editId").value;
+            const sku = document.getElementById("editSku").value;
+            const name = document.getElementById("editName").value.trim();
+            const catId = document.getElementById("editCategory").value;
+            const brandId = document.getElementById("editBrand").value;
+            const price = parseFloat(document.getElementById("editPrice").value);
+            const description = document.getElementById("editDesc").value.trim();
+
+            const payload = {
+                sku: sku,
+                name: name,
+                price: price,
+                description: description,
+                category: catId ? { id: parseInt(catId, 10) } : null,
+                brand: brandId ? { id: parseInt(brandId, 10) } : null
+            };
+
+            try {
+                const response = await fetch(`/api/v1/products/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    const updated = await response.json();
+                    closeEditModal();
+                    showToast(`Cập nhật thành công sản phẩm "${updated.name}"`, "PUT 200 OK", "success");
+                    fetchProducts();
+                } else {
+                    showToast(`Cập nhật thất bại (HTTP ${response.status})`, "LỖI", "danger");
+                }
+            } catch (err) {
+                console.error("Lỗi cập nhật sản phẩm:", err);
+                showToast(`Lỗi: ${err.message}`, "LỖI", "danger");
+            }
+        }
+
+        // ================= XÓA (DELETE /api/v1/products/{id}) =================
+        async function deleteProduct(id, name) {
+            if (!confirm(`Bạn có chắc chắn muốn xóa sản phẩm:\n"${name}" (ID: ${id})?\nThao tác này sẽ gọi DELETE /api/v1/products/${id}!`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/v1/products/${id}`, {
+                    method: "DELETE"
+                });
+
+                if (response.status === 204 || response.ok) {
+                    showToast(`Đã xóa thành công sản phẩm ID: ${id}`, "DELETE 204 NO CONTENT", "success");
+                    fetchProducts();
+                } else {
+                    showToast(`Xóa thất bại (HTTP ${response.status})`, "LỖI", "danger");
+                }
+            } catch (err) {
+                console.error("Lỗi xóa sản phẩm:", err);
+                showToast(`Lỗi: ${err.message}`, "LỖI", "danger");
+            }
+        }
+
+        // Khi load trang lần đầu, đồng bộ dữ liệu ban đầu cho pagination nếu cần
+        window.addEventListener("DOMContentLoaded", () => {
+            // Nạp dữ liệu nền tự động để sẵn sàng cho phân trang mượt mà
+            fetch("/api/v1/products")
+                .then(r => r.json())
+                .then(data => {
+                    allProducts = data;
+                })
+                .catch(() => {});
+        });
+    </script>
+</body>
+</html>

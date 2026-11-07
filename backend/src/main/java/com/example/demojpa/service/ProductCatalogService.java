@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Service: ProductCatalogService (Quản lý nghiệp vụ Sản phẩm, Danh mục, Thương hiệu)
@@ -50,35 +49,12 @@ public class ProductCatalogService {
     }
 
     public List<Product> searchProducts(String categoryCode, String brandName, Double maxPrice, String keyword) {
-        List<Product> list = productRepo.findAll();
+        String cleanCategoryCode = (categoryCode != null && !categoryCode.trim().isEmpty()) ? categoryCode.trim() : null;
+        String cleanBrandName = (brandName != null && !brandName.trim().isEmpty()) ? brandName.trim() : null;
+        Double cleanMaxPrice = (maxPrice != null && maxPrice > 0) ? maxPrice : null;
+        String cleanKeyword = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
 
-        if (categoryCode != null && !categoryCode.trim().isEmpty()) {
-            list = list.stream()
-                    .filter(p -> p.getCategory() != null && categoryCode.equalsIgnoreCase(p.getCategory().getCode()))
-                    .collect(Collectors.toList());
-        }
-
-        if (brandName != null && !brandName.trim().isEmpty()) {
-            list = list.stream()
-                    .filter(p -> p.getBrand() != null && brandName.equalsIgnoreCase(p.getBrand().getName()))
-                    .collect(Collectors.toList());
-        }
-
-        if (maxPrice != null && maxPrice > 0) {
-            list = list.stream()
-                    .filter(p -> p.getPrice() != null && p.getPrice() <= maxPrice)
-                    .collect(Collectors.toList());
-        }
-
-        if (keyword != null && !keyword.trim().isEmpty()) {
-            String kw = keyword.toLowerCase();
-            list = list.stream()
-                    .filter(p -> (p.getName() != null && p.getName().toLowerCase().contains(kw))
-                            || (p.getDescription() != null && p.getDescription().toLowerCase().contains(kw)))
-                    .collect(Collectors.toList());
-        }
-
-        return list;
+        return productRepo.searchByFilters(cleanCategoryCode, cleanBrandName, cleanMaxPrice, cleanKeyword);
     }
 
     public Product createProduct(Product product) {
