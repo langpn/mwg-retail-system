@@ -17,6 +17,7 @@ import {
   DollarSign,
   AlertTriangle,
   TrendingUp,
+  Lock,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -47,13 +48,105 @@ const NAV: { id: Section; label: string; icon: React.ReactNode }[] = [
 export function DashboardApp() {
   const [section, setSection] = useState<Section>('overview')
   const [connected, setConnected] = useState<boolean | null>(null)
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+  const [adminPin, setAdminPin] = useState('')
+  const [pinError, setPinError] = useState<string | null>(null)
 
   const didCheck = useRef(false)
   useEffect(() => {
     if (didCheck.current) return
     didCheck.current = true
     ping().then(setConnected)
+
+    try {
+      const saved = localStorage.getItem('mwg_customer_v1')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.role === 'ADMIN') {
+          setIsAdmin(true)
+          return
+        }
+      }
+    } catch {}
+    setIsAdmin(false)
   }, [])
+
+  if (isAdmin === false) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl text-center">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 mb-4">
+            <Lock className="size-6" />
+          </div>
+          <h2 className="text-lg font-black text-foreground">Khu Vực Quản Trị Hệ Thống</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Trang này chỉ dành riêng cho Ban Quản Trị và Giảng viên chấm thi. Vui lòng xác thực quyền truy cập.
+          </p>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              const pin = adminPin.trim()
+              if (
+                pin === '172004' ||
+                pin.toLowerCase() === 'admin' ||
+                pin === '0900000000' ||
+                pin === '0987654321'
+              ) {
+                try {
+                  localStorage.setItem(
+                    'mwg_customer_v1',
+                    JSON.stringify({
+                      id: 999,
+                      fullName: 'Quản trị viên hệ thống',
+                      phone: pin,
+                      role: 'ADMIN',
+                    }),
+                  )
+                } catch {}
+                setIsAdmin(true)
+              } else {
+                setPinError('Mã PIN hoặc SĐT Quản trị không chính xác!')
+              }
+            }}
+            className="mt-6 flex flex-col gap-3 text-left"
+          >
+            <div>
+              <label className="mb-1.5 block text-xs font-bold text-foreground">
+                Mã PIN hoặc SĐT Quản trị viên
+              </label>
+              <input
+                type="password"
+                required
+                value={adminPin}
+                onChange={(e) => {
+                  setAdminPin(e.target.value)
+                  setPinError(null)
+                }}
+                placeholder="Nhập mã PIN (VD: 172004) hoặc SĐT Admin"
+                className="h-11 w-full rounded-xl border border-border bg-card px-3 text-center text-sm font-bold tracking-widest focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
+              />
+              {pinError && <p className="mt-1.5 text-center text-xs font-bold text-rose-600">{pinError}</p>}
+            </div>
+
+            <button
+              type="submit"
+              className="mt-2 flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-600 text-sm font-extrabold text-white shadow-sm transition-all hover:bg-amber-700"
+            >
+              Mở khóa Dashboard
+            </button>
+
+            <Link
+              href="/"
+              className="mt-2 text-center text-xs font-semibold text-muted-foreground hover:text-foreground"
+            >
+              ← Quay về trang mua sắm
+            </Link>
+          </form>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen bg-background">

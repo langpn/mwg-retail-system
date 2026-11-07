@@ -1,4 +1,4 @@
-:HL["/_next/static/chunks/0s-ycfwqgjiim.css","style"]
+:HL["/_next/static/chunks/1-jm_yqtdt2vl.css","style"]
 :HL["/_next/static/media/53897e768d329f66-s.p.3t6q91iet4nsy.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/_next/static/media/cabb10e1d7cbc7c1-s.p.10u7vx61f1ie7.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/_next/static/media/d8aeca813a9ab546-s.p.18rizl4rsrl42.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
@@ -6,4 +6,4 @@
 3:[["children",{"s":"__PAGE__","h":160}]]
 2:[["children",{"s":{"n":"sku","t":"d","k":"DMX-MG-003","s":[]},"h":96,"c":"$Q3"}]]
 1:[["children",{"s":"product","h":96,"c":"$Q2"}]]
-0:{"b":"Hw8tGBSBduGW_OSOqo-YS","t":{"t":{"s":"","h":80,"c":"$Q1"}}}
+0:{"b":"Q92sxJ1uzzAkT8z-yUFFq","t":{"t":{"s":"","h":80,"c":"$Q1"}}}

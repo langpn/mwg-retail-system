@@ -10,8 +10,6 @@ import {
   LogIn,
   MapPin,
   Phone,
-  ShieldCheck,
-  Sparkles,
   User,
   UserPlus,
 } from 'lucide-react'
@@ -19,6 +17,9 @@ import { StoreProvider, useStore } from '@/components/dmx/store-provider'
 import { AppHeader } from '@/components/dmx/app-header'
 import { SiteFooter } from '@/components/dmx/site-footer'
 import { api } from '@/lib/api'
+
+// Danh sách các số điện thoại / định danh được cấp quyền Quản trị viên (Admin)
+const ADMIN_IDENTIFIERS = ['0900000000', '0987654321', 'admin']
 
 export default function AuthPage() {
   return (
@@ -57,21 +58,32 @@ function AuthContent() {
       return
     }
 
-    // Đăng nhập nhanh Admin nếu gõ "admin" hoặc SĐT 0900000000
-    if (identifier.toLowerCase() === 'admin' || identifier === '0900000000') {
-      quickAdminLogin()
+    // 1. Kiểm tra nếu là Số điện thoại của Quản trị viên
+    const lower = identifier.toLowerCase()
+    if (ADMIN_IDENTIFIERS.includes(lower) || ADMIN_IDENTIFIERS.includes(identifier)) {
+      loginCustomer({
+        id: 999,
+        fullName: 'Quản trị viên hệ thống',
+        phone: identifier,
+        email: 'admin@dmx.mwg.vn',
+        address: 'Trụ sở Điện Máy Xanh',
+        role: 'ADMIN',
+      })
+      setNotification('Đăng nhập thành công với Quyền Quản trị viên! Đang mở trang chủ...')
+      setTimeout(() => {
+        router.push('/')
+      }, 700)
       return
     }
 
+    // 2. Tra cứu khách hàng thành viên trong MySQL
     setSubmitting(true)
     try {
-      // 1. Tìm trực tiếp theo số điện thoại qua API backend
       let foundCustomer: any = null
       const res = await api.getCustomerByPhone(identifier)
       if (res.ok) {
         foundCustomer = await res.json()
       } else {
-        // 2. Nếu không tìm thấy, quét danh sách toàn bộ khách hàng
         const list = await api.getCustomers()
         if (Array.isArray(list)) {
           foundCustomer = list.find(
@@ -97,7 +109,7 @@ function AuthContent() {
         }, 800)
       } else {
         setError(
-          'Không tìm thấy thành viên với SĐT/Email này trong CSDL. Quý khách vui lòng chọn tab "Đăng ký" bên trên nhé!',
+          'Không tìm thấy thành viên với Số điện thoại này trong hệ thống. Quý khách vui lòng chọn tab "Đăng ký" bên trên nhé!',
         )
       }
     } catch {
@@ -163,55 +175,6 @@ function AuthContent() {
     } finally {
       setSubmitting(false)
     }
-  }
-
-  async function quickCustomerLogin() {
-    setSubmitting(true)
-    setError(null)
-    try {
-      const res = await api.getCustomerByPhone('0901234567')
-      if (res.ok) {
-        const found = await res.json()
-        loginCustomer({
-          id: found.id,
-          fullName: found.fullName,
-          phone: found.phone,
-          email: found.email,
-          address: found.address,
-          role: 'CUSTOMER',
-        })
-        setNotification(`Đăng nhập thành công với tài khoản mẫu: ${found.fullName}!`)
-        setTimeout(() => router.push('/'), 700)
-        return
-      }
-    } catch {}
-
-    // Fallback nếu server chưa phản hồi
-    loginCustomer({
-      id: 1,
-      fullName: 'Nguyễn Văn An',
-      phone: '0901234567',
-      email: 'an.nguyen@gmail.com',
-      address: 'Số 10 Võ Văn Ngân, TP. Thủ Đức',
-      role: 'CUSTOMER',
-    })
-    setNotification('Đăng nhập thành công với tài khoản mẫu Nguyễn Văn An!')
-    setTimeout(() => router.push('/'), 700)
-  }
-
-  function quickAdminLogin() {
-    loginCustomer({
-      id: 999,
-      fullName: 'Quản trị viên hệ thống',
-      phone: '0900000000',
-      email: 'admin@dmx.mwg.vn',
-      address: 'Trụ sở Điện Máy Xanh',
-      role: 'ADMIN',
-    })
-    setNotification('Đăng nhập thành công với Quyền Quản trị viên! Đang mở Dashboard...')
-    setTimeout(() => {
-      router.push('/dashboard')
-    }, 700)
   }
 
   return (
@@ -293,14 +256,22 @@ function AuthContent() {
                       required
                       value={loginIdentifier}
                       onChange={(e) => setLoginIdentifier(e.target.value)}
-                      placeholder="VD: 0901234567 hoặc an.nguyen@gmail.com"
+                      placeholder="VD: 0901234567 hoặc số điện thoại của bạn"
                       className="h-11 w-full rounded-xl border border-border bg-card pr-4 pl-10 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
                     />
                   </div>
-                  <div className="mt-2 rounded-lg bg-secondary/50 p-2.5 text-[11px] text-muted-foreground">
-                    💡 <span className="font-semibold text-foreground">Chuẩn Điện Máy Xanh:</span> Khách hàng chỉ cần nhập Số điện thoại, hệ thống sẽ tự động tra cứu hồ sơ và tích điểm trong CSDL MySQL.
-                    <br />
-                    Tài khoản mẫu có sẵn trong database: <span className="font-bold text-primary">0901234567</span>
+                  <div className="mt-2.5 rounded-lg bg-secondary/50 p-2.5 text-[11px] text-muted-foreground">
+                    💡 <span className="font-semibold text-foreground">Chuẩn chuỗi Điện Máy Xanh:</span> Khách hàng chỉ cần nhập Số điện thoại đã mua hàng để tích điểm và tra cứu bảo hành.
+                    <div className="mt-1 flex items-center gap-1.5 text-body">
+                      <span>Khách mẫu có sẵn trong database:</span>
+                      <button
+                        type="button"
+                        onClick={() => setLoginIdentifier('0901234567')}
+                        className="font-bold text-primary hover:underline"
+                      >
+                        0901234567
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -312,36 +283,6 @@ function AuthContent() {
                   {submitting ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
                   Đăng nhập bằng Số điện thoại
                 </button>
-
-                <div className="relative my-2 text-center">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-border" />
-                  </div>
-                  <span className="relative bg-card px-3 text-[11px] font-semibold uppercase text-muted-foreground">
-                    Hoặc truy cập nhanh
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={quickCustomerLogin}
-                    disabled={submitting}
-                    className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-secondary/50 text-xs font-bold text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
-                  >
-                    <User className="size-3.5 text-primary" />
-                    Khách mẫu (MySQL)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={quickAdminLogin}
-                    className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-50 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-100"
-                  >
-                    <ShieldCheck className="size-3.5 text-amber-600" />
-                    Quyền Admin
-                  </button>
-                </div>
               </form>
             ) : (
               <form onSubmit={handleRegister} className="flex flex-col gap-3.5">
@@ -399,7 +340,7 @@ function AuthContent() {
                 </div>
 
                 <div className="rounded-lg bg-emerald-50/70 border border-emerald-200/60 p-2.5 text-[11px] text-emerald-800">
-                  <span className="font-bold">✓ CSDL MySQL:</span> Thông tin sẽ được lưu trực tiếp vào bảng <code className="font-mono font-bold">customers</code> qua REST API <code className="font-mono">POST /api/v1/customers</code>.
+                  <span className="font-bold">✓ CSDL MySQL:</span> Thông tin thành viên sẽ được lưu trực tiếp vào bảng <code className="font-mono font-bold">customers</code> qua REST API.
                 </div>
 
                 <button
