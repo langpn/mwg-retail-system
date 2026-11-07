@@ -1,156 +1,43 @@
-# 🏬 MWG Retail Multi-Branch System (`mwg-retail-system`)
-> **Hệ Thống Dữ Liệu & Bán Lẻ Đa Chi Nhánh Điện Máy Xanh**  
-> **Đồ Án Môn Học:** Công cụ Web và Website hướng dữ liệu (ĐH Công nghiệp TP.HCM - IUH - Khóa 21BVL)  
-> **Kho lưu trữ:** [https://github.com/langpn/mwg-retail-system](https://github.com/langpn/mwg-retail-system)
+# MWG Retail Multi-Branch System (`mwg-retail-system`)
+
+> **Hệ Thống Quản Lý Dữ Liệu & Bán Lẻ Đa Chi Nhánh Điện Máy Xanh**  
+> **Học phần:** Công cụ Web và Website hướng dữ liệu — ĐH Công nghiệp TP.HCM (IUH) • **GVHD:** Trương Bá Phúc  
+> **Nhóm thực hiện (`DHCNTT21BVL` — Phân hoạch dọc):** Bùi Dương Diễm (`25765281` — *Nhóm trưởng*) • Phạm Ngọc Lang (`25765251`) • Nguyễn Thanh Toàn (`25765051`)
 
 ---
 
-## 🧭 I. TỔNG QUAN HỆ THỐNG
-Dự án được xây dựng nhằm mô phỏng hệ thống quản lý dữ liệu bán lẻ đa chi nhánh của chuỗi siêu thị Điện Máy Xanh (MWG). Hệ thống giải quyết các bài toán cốt lõi:
-1. **Quản lý danh mục & thương hiệu:** Phân loại thiết bị gia dụng (Máy giặt, Tủ lạnh, Smart Tivi) theo thương hiệu chính hãng (Toshiba, Samsung, LG, Panasonic).
-2. **Quản lý tồn kho đa chi nhánh thời gian thực:** Đồng bộ số lượng hàng hóa tại các siêu thị (Chi nhánh Lê Văn Việt - Quận 9, Chi nhánh Đỗ Xuân Hợp - Thủ Đức).
-3. **Quản lý đơn hàng & khách hàng:** Tự động hóa luồng đặt mua, áp dụng chiết khấu mã khuyến mãi (`MWG5`, `TET2027`) và trừ số lượng tồn kho tự động.
-4. **Cung cấp RESTful Web Services:** Phục vụ dữ liệu JSON chuẩn cho ứng dụng Client và làm Backend Data Provider cho hệ thống AI Agent (`MWG-Retail-Orchestrator`).
+## 1. Tổng Quan Dự Án
+
+`mwg-retail-system` mô phỏng bài toán quản trị danh mục điện máy, tra cứu tồn kho theo từng siêu thị chi nhánh thời gian thực và tự động khấu trừ tồn kho khi đặt hàng:
+* **Backend 4 tầng chuẩn mực:** Java 17 LTS + Spring Boot 3 + Spring Data JPA / Hibernate 6 (`Code-First`), cung cấp **29 RESTful API endpoints** chuẩn JSON qua 6 Controller.
+* **Cơ sở dữ liệu quan hệ 10 bảng:** Thiết kế trên **MySQL 8.0** (kèm profile dự phòng **H2 In-Memory**), tự động khởi tạo dữ liệu mẫu qua `DataSeeder`.
+* **Giao diện thương mại điện tử tốc độ cao:** **Next.js 16 (App Router) + React 19 + Tailwind CSS 4** xuất tĩnh (`output: 'export'`) trực tiếp vào `backend/src/main/resources/static/`, vận hành hợp nhất trên **một cổng duy nhất `http://localhost:8088`**.
 
 ---
 
-## 🏛️ II. KIẾN TRÚC KỸ THUẬT (3-TIER ARCHITECTURE)
+## 2. Khởi Chạy Nhanh (Chỉ 1 Lệnh)
 
-```text
-                        TRÌNH DUYỆT / CLIENT / AI AGENT
-                                       │
-                                       ▼ (HTTP Request :8080)
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       TẦNG FRONTEND (REACT SPA)                             │
-│ • Giao diện Dashboard React 18 + TypeScript + Tailwind CSS                 │
-│ • Đóng gói tĩnh vào 'src/main/resources/static/' (Chạy 1 cổng 8080 duy nhất)│
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼ (Fetch REST API JSON)
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       TẦNG CONTROLLER (SPRING WEB MVC)                      │
-│ • ProductApiController     : GET /api/v1/products, POST, DELETE             │
-│ • InventoryApiController   : GET /api/v1/inventory/check, PUT (Update Stock)│
-│ • OrderApiController       : GET /api/v1/orders, POST (Tạo đơn hàng)        │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       TẦNG SERVICE (BUSINESS LOGIC)                         │
-│ • ProductCatalogService    : Nghiệp vụ lọc danh mục, giá, thương hiệu       │
-│ • InventoryService         : Nghiệp vụ kiểm tra & cập nhật tồn kho chi nhánh│
-│ • OrderService             : Nghiệp vụ tính tiền, chiết khấu & trừ tồn kho  │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       TẦNG REPOSITORY (SPRING DATA JPA)                     │
-│ • 10 Interfaces kế thừa JpaRepository<T, Long>                              │
-│ • Tự động ánh xạ ORM / Hibernate xuống CSDL MySQL                           │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       CƠ SỞ DỮ LIỆU MYSQL (10 BẢNG)                         │
-│   categories, brands, products, store_branches, inventories,                │
-│   customers, promotions, customer_orders, order_items, product_reviews      │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📁 III. CẤU TRÚC THƯ MỤC MONOREPO
-
-```text
-mwg-retail-system/
-├── backend/                  <── Toàn bộ Spring Boot 3 + MySQL 10 bảng (Maven)
-│   ├── src/main/java/com/example/demojpa/
-│   │   ├── entity/           <── 10 JPA Entities
-│   │   ├── repository/       <── 10 JpaRepository interfaces
-│   │   ├── service/          <── 3 Services nghiệp vụ
-│   │   ├── controller/       <── REST APIs & Web Controller
-│   │   ├── dto/              <── Request/Response DTOs
-│   │   └── seeder/           <── DataSeeder nạp sẵn dữ liệu mẫu
-│   ├── src/main/resources/
-│   │   ├── static/           <── Nơi chứa bundle tĩnh của React sau khi build
-│   │   └── application.properties
-│   ├── pom.xml
-│   ├── mvnw
-│   └── mvnw.cmd
-├── frontend/                 <── Dự án React 18 + Vite + Tailwind CSS (SPA)
-│   ├── src/                  <── Dashboard bán lẻ, tra cứu tồn kho, form đặt hàng
-│   ├── package.json
-│   └── vite.config.ts        <── Tự động build thẳng vào backend static
-├── docs/                     <── Cuốn báo cáo 17 trang, sơ đồ ERD 10 bảng
-├── HUONG_DAN_DO_AN_CHO_NHOM.md
-├── KE_HOACH_CHI_TIET_NHOM_3_NGUOI.md
-└── README.md
-```
-
----
-
-## 📊 IV. SƠ ĐỒ CƠ SỞ DỮ LIỆU (10 BẢNG QUAN HỆ CHUẨN)
-
-Hệ thống được thiết kế chuẩn mực 10 thực thể quan hệ bằng **Spring Data JPA**:
-
-```text
-┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
-│   CATEGORIES    │1     N│    PRODUCTS     │1     N│   INVENTORIES   │
-│ (Danh mục sp)   ├───────┤ (Sản phẩm ĐMX)  ├───────┤ (Tồn kho c/nhánh)│
-└─────────────────┘       └────────┬────────┘       └────────┬────────┘
-                                   │1                        │N
-┌─────────────────┐                │                         │
-│     BRANDS      │1               │                         │
-│  (Thương hiệu)  ├────────────────┤                         │
-└─────────────────┘                │N                        │1
-                                   │                ┌────────┴────────┐
-┌─────────────────┐       ┌────────┴────────┐       │ STORE_BRANCHES  │
-│ PRODUCT_REVIEWS │N     1│   ORDER_ITEMS   │N     1│ (Siêu thị ĐMX)  │
-│   (Đánh giá)    ├───────┤ (Chi tiết đơn)  ├───────┤                 │
-└─────────────────┘       └────────┬────────┘       └─────────────────┘
-                                   │N
-┌─────────────────┐                │1
-│   PROMOTIONS    │1      ┌────────┴────────┐       ┌─────────────────┐
-│  (Khuyến mãi)   ├───────┤     ORDERS      │N     1│    CUSTOMERS    │
-└─────────────────┘       │   (Đơn mua)     ├───────┤  (Khách hàng)   │
-                          └─────────────────┘       └─────────────────┘
-```
-
----
-
-## 🚀 V. HƯỚNG DẪN KHỞI CHẠY ỨNG DỤNG (CHỈ 1 LỆNH DUY NHẤT)
-
-### 1. Chuẩn Bị CSDL MySQL:
-* Mở MySQL Workbench hoặc XAMPP, tạo database rỗng tên: `mwg_retail_db`.
-* Cấu hình trong `backend/src/main/resources/application.properties`:
-  ```properties
-  spring.datasource.url=jdbc:mysql://localhost:3306/mwg_retail_db?useSSL=false&serverTimezone=UTC
-  spring.datasource.username=root
-  spring.datasource.password=
-  spring.jpa.hibernate.ddl-auto=update
-  spring.jpa.show-sql=true
-  ```
-
-### 2. Chạy Ứng Dụng:
 ```bash
-# Trên macOS / Linux:
+# Đảm bảo MySQL Server đang chạy ở cổng 3306, sau đó khởi chạy:
 cd backend && ./mvnw spring-boot:run
-
-# Trên Windows Command Prompt:
-cd backend && mvnw.cmd spring-boot:run
+# (Trên Windows: cd backend && mvnw.cmd spring-boot:run)
 ```
 
-### 3. Trải Nghiệm Giao Diện:
-* Mở trình duyệt truy cập: **`http://localhost:8080`**
-* Toàn bộ giao diện React SPA hiện đại sẽ tải lên lập tức, CSDL đã được `DataSeeder.java` nạp sẵn 15 sản phẩm mẫu, 4 thương hiệu và tồn kho tại 2 chi nhánh siêu thị.
+* **Giao diện Cửa hàng & Ma trận tồn kho:** `http://localhost:8088`
+* **Giao diện Quản trị viên (Admin CRUD 6 phân hệ):** `http://localhost:8088/dashboard`
+* **Kiểm tra JSON REST API:** `http://localhost:8088/api/v1/products`
+
+*(Chi tiết cấu hình mật khẩu DB, chế độ offline H2 và cách build lại giao diện xem tại [`docs/03-execution-and-team/03-local-setup-and-runbook.md`](./docs/03-execution-and-team/03-local-setup-and-runbook.md)).*
 
 ---
 
-## 👥 VI. THÀNH VIÊN THỰC HIỆN ĐỒ ÁN (NHÓM 3 SINH VIÊN IUH)
+## 3. Hệ Thống Tài Liệu Nguyên Tử (Atomic Documentation)
 
-* **Phạm Ngọc Lang** (MSSV: 25765251) - Nhóm trưởng (Phụ trách Phân hệ Sản phẩm, Hạ tầng Spring Boot & REST APIs).
-* **Bạn Diễm** (Phụ trách Phân hệ Siêu thị & Tồn kho chi nhánh).
-* **Bạn Toàn** (Phụ trách Phân hệ Khách hàng, Đơn đặt hàng & Cuốn Báo Cáo 17 trang).
+Toàn bộ tài liệu kế hoạch, đặc tả kỹ thuật và đối chiếu bài giảng (kèm trích dẫn **mốc phút:giây chính xác** từ 20 video trên 2 Playlist của giảng viên) được tổ chức tập trung tại **[`docs/README.md`](./docs/README.md)**:
 
----
-*Mã nguồn được phân phối dưới giấy phép nội bộ phục vụ môn học IUH và danh mục dự án kỹ thuật cá nhân.*
+| Nhóm chủ đề | Tài liệu nguyên tử | Nội dung chính |
+| :--- | :--- | :--- |
+| **01. Chuẩn Mực Của Thầy & Kiểm Toán** | [`01-lecture-index-and-timeline.md`](./docs/01-course-audit/01-lecture-index-and-timeline.md)<br>[`02-instructor-requirements.md`](./docs/01-course-audit/02-instructor-requirements.md)<br>[`03-compliance-gap-audit.md`](./docs/01-course-audit/03-compliance-gap-audit.md) | • Bản đồ đối chiếu 20 video (PL1 ↔ PL2) & timeline kiến thức.<br>• Quy chế Đồ án, Báo cáo ≤ 17 trang, Thang điểm & 8 bẫy 0 điểm.<br>• Kiểm toán 3 chiều: Lời thầy ↔ Docs cũ ↔ Source code hiện tại. |
+| **02. Đặc Tả Kiến Trúc & Kỹ Thuật** | [`01-system-architecture.md`](./docs/02-architecture-and-specs/01-system-architecture.md)<br>[`02-database-erd-10-tables.md`](./docs/02-architecture-and-specs/02-database-erd-10-tables.md)<br>[`03-rest-api-specification.md`](./docs/02-architecture-and-specs/03-rest-api-specification.md) | • Kiến trúc 4 tầng Spring Boot + Next.js Static SPA cổng `:8088`.<br>• Sơ đồ ERD, 10 bảng vật lý, JPA Annotations, `@JsonIgnore` & `Cascade`.<br>• Đặc tả đầy đủ 29 RESTful API endpoints & mẫu JSON payload. |
+| **03. Kế Hoạch Thực Thi & Nhóm** | [`01-vertical-slicing-matrix.md`](./docs/03-execution-and-team/01-vertical-slicing-matrix.md)<br>[`02-master-execution-roadmap.md`](./docs/03-execution-and-team/02-master-execution-roadmap.md)<br>[`03-local-setup-and-runbook.md`](./docs/03-execution-and-team/03-local-setup-and-runbook.md) | • Ma trận Phân hoạch dọc 3 thành viên (Diễm – Lang – Toàn).<br>• **Master Plan 4 Phases** chuẩn hóa toàn diện dự án trước khi code.<br>• Hướng dẫn cài đặt local, build UI và Checklist trước giờ vấn đáp. |
+| **04. Báo Cáo & Cẩm Nang Thi Cử** | [`01-report-17-pages-draft.md`](./docs/04-deliverables-and-defense/01-report-17-pages-draft.md)<br>[`02-oral-defense-playbook.md`](./docs/04-deliverables-and-defense/02-oral-defense-playbook.md)<br>[`03-final-exam-study-guide.md`](./docs/04-deliverables-and-defense/03-final-exam-study-guide.md) | • Bản thảo in ấn Cuốn Báo Cáo ≤ 17 trang chuẩn thông số thật.<br>• Cẩm nang trả lời vấn đáp (gồm cả các câu thầy đã hỏi nhóm trên lớp).<br>• Đề cương ôn thi giấy cuối kỳ đóng tài liệu (10 công cụ + code mẫu). |

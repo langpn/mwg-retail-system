@@ -1,0 +1,581 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "MWG Retail System - REST API Collection (29 Endpoints)",
+    "description": "Bộ Postman Collection 29 RESTful API Endpoints cho Hệ Thống Bán Lẻ Điện Máy Xanh (MWG Retail System) phục vụ báo cáo và bảo vệ đồ án tốt nghiệp / môn học IUH.\n\nBao gồm 6 phân hệ nghiệp vụ:\n1. Product Catalog (Sản phẩm, Danh mục & Thương hiệu) - 7 APIs\n2. Inventory & Branches (Tồn kho & Siêu thị chi nhánh) - 4 APIs\n3. Product Reviews (Đánh giá sản phẩm) - 4 APIs\n4. Orders & Checkout (Đơn đặt hàng & Khấu trừ tồn kho) - 4 APIs\n5. Customers (Khách hàng thành viên) - 5 APIs\n6. Promotions (Chương trình khuyến mãi & Mã giảm giá) - 5 APIs\n\nTổng cộng: 29 Endpoints chuẩn HTTP Verbs (GET, POST, PUT, DELETE).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8088",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Product Catalog (Sản phẩm & Danh mục)",
+      "description": "Phân hệ 1: Quản lý danh mục ngành hàng, thương hiệu chính hãng và sản phẩm điện máy (7 APIs)",
+      "item": [
+        {
+          "name": "1. GET /api/v1/products - Danh sách sản phẩm (Lọc đa tiêu chí)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products?category=TIVI&brand=Sony&maxPrice=25000000&keyword=Smart",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "TIVI",
+                  "description": "Mã danh mục (TIVI, TULANH, MAYGIAT, GIADUNG...)"
+                },
+                {
+                  "key": "brand",
+                  "value": "Sony",
+                  "description": "Tên thương hiệu (Sony, Samsung, LG, Toshiba, Panasonic...)"
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "25000000",
+                  "description": "Mức giá trần tối đa (VNĐ)"
+                },
+                {
+                  "key": "keyword",
+                  "value": "Smart",
+                  "description": "Từ khóa tìm kiếm theo tên hoặc mô tả"
+                }
+              ]
+            },
+            "description": "Lấy danh sách sản phẩm kết hợp lọc đa tiêu chí qua @RequestParam: category, brand, maxPrice, keyword."
+          },
+          "response": []
+        },
+        {
+          "name": "2. GET /api/v1/products/{id} - Chi tiết 1 sản phẩm theo ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products", "1"]
+            },
+            "description": "Lấy thông tin chi tiết của 1 sản phẩm cụ thể theo ID thông qua @PathVariable."
+          },
+          "response": []
+        },
+        {
+          "name": "3. GET /api/v1/products/categories - Toàn bộ danh mục ngành hàng",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products", "categories"]
+            },
+            "description": "Lấy danh sách toàn bộ các danh mục ngành hàng Điện Máy Xanh (Tivi, Tủ lạnh, Máy giặt, Gia dụng...)."
+          },
+          "response": []
+        },
+        {
+          "name": "4. GET /api/v1/products/brands - Toàn bộ thương hiệu chính hãng",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/brands",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products", "brands"]
+            },
+            "description": "Lấy danh sách các thương hiệu chính hãng trong hệ thống (Samsung, Sony, LG, Toshiba, Panasonic, Sharp...)."
+          },
+          "response": []
+        },
+        {
+          "name": "5. POST /api/v1/products - Thêm mới một sản phẩm",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"DMX-TV-099\",\n  \"name\": \"Smart Tivi OLED LG 4K 65 inch OLED65C3\",\n  \"price\": 38990000.0,\n  \"description\": \"Tivi OLED evo đỉnh cao giải trí, chip xử lý α9 Gen6 AI 4K, âm thanh Dolby Atmos\",\n  \"category\": {\n    \"id\": 1\n  },\n  \"brand\": {\n    \"id\": 2\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products"]
+            },
+            "description": "Thêm mới một sản phẩm điện máy vào CSDL. Trả về HTTP 201 Created."
+          },
+          "response": []
+        },
+        {
+          "name": "6. PUT /api/v1/products/{id} - Cập nhật thông tin sản phẩm",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"DMX-TV-001\",\n  \"name\": \"Smart Tivi Sony 4K 55 inch KD-55X75K (Khuyến mãi hè)\",\n  \"price\": 14490000.0,\n  \"description\": \"Tivi Sony 4K HDR màn hình 55 inch, công nghệ màu sắc Live Colour sống động, Google TV tích hợp trợ lý ảo tiếng Việt\",\n  \"category\": {\n    \"id\": 1\n  },\n  \"brand\": {\n    \"id\": 1\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products", "1"]
+            },
+            "description": "Cập nhật tên, giá bán, mô tả, danh mục hoặc thương hiệu của sản phẩm theo ID. Trả về HTTP 200 OK."
+          },
+          "response": []
+        },
+        {
+          "name": "7. DELETE /api/v1/products/{id} - Xóa sản phẩm theo ID",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products", "1"]
+            },
+            "description": "Xóa một sản phẩm khỏi danh mục hệ thống. Trả về HTTP 204 No Content nếu xóa thành công hoặc 404 Not Found."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Inventory & Branches (Tồn kho & Siêu thị)",
+      "description": "Phân hệ 2A: Quản lý hệ thống siêu thị chi nhánh và ma trận tồn kho sản phẩm (4 APIs)",
+      "item": [
+        {
+          "name": "8. GET /api/v1/inventory/branches - Toàn bộ chi nhánh siêu thị ĐMX",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/branches",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "inventory", "branches"]
+            },
+            "description": "Lấy danh sách tất cả các siêu thị chi nhánh Điện Máy Xanh đang hoạt động."
+          },
+          "response": []
+        },
+        {
+          "name": "9. GET /api/v1/inventory/check - Tra cứu tồn kho theo SKU & Quận",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/check?sku=DMX-TV-001&district=Quận 7",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "inventory", "check"],
+              "query": [
+                {
+                  "key": "sku",
+                  "value": "DMX-TV-001",
+                  "description": "Mã SKU sản phẩm cần tra cứu"
+                },
+                {
+                  "key": "district",
+                  "value": "Quận 7",
+                  "description": "Địa bàn quận/huyện muốn kiểm tra hàng có sẵn"
+                }
+              ]
+            },
+            "description": "Tra cứu nhanh số lượng tồn kho khả dụng tại một chi nhánh siêu thị cụ thể theo mã SKU và quận/huyện."
+          },
+          "response": []
+        },
+        {
+          "name": "10. GET /api/v1/inventory/branch/{branchId} - Tồn kho tất cả mặt hàng tại chi nhánh",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/branch/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "inventory", "branch", "1"]
+            },
+            "description": "Lấy toàn bộ danh sách mặt hàng và số lượng tồn kho thực tế tại một siêu thị chi nhánh cụ thể."
+          },
+          "response": []
+        },
+        {
+          "name": "11. PUT /api/v1/inventory/update - Điều chỉnh số lượng tồn kho tại siêu thị",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": 1,\n  \"branchId\": 1,\n  \"quantity\": 25\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/update",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "inventory", "update"]
+            },
+            "description": "Điều chỉnh hoặc nhập hàng cập nhật số lượng tồn kho thực tế của 1 sản phẩm tại 1 chi nhánh. Trả về HTTP 200 OK."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Product Reviews (Đánh giá sản phẩm)",
+      "description": "Phân hệ 2B: Quản lý nhận xét và đánh giá sao chất lượng sản phẩm từ khách hàng (4 APIs)",
+      "item": [
+        {
+          "name": "12. GET /api/v1/reviews - Toàn bộ đánh giá sản phẩm (Dành cho Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "reviews"]
+            },
+            "description": "Lấy toàn bộ danh sách đánh giá sản phẩm trong hệ thống để hiển thị trên Dashboard Admin."
+          },
+          "response": []
+        },
+        {
+          "name": "13. GET /api/v1/reviews/product/{productId} - Đánh giá theo sản phẩm",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reviews/product/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "reviews", "product", "1"]
+            },
+            "description": "Lấy danh sách các bình luận nhận xét và số sao của một sản phẩm điện máy cụ thể theo Product ID."
+          },
+          "response": []
+        },
+        {
+          "name": "14. POST /api/v1/reviews - Gửi đánh giá sản phẩm mới",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"id\": 1\n  },\n  \"customer\": {\n    \"id\": 1\n  },\n  \"rating\": 5,\n  \"comment\": \"Smart Tivi hình ảnh 4K cực kỳ sắc nét, giao hàng và lắp đặt trong vòng 2 tiếng, nhân viên ĐMX rất tận tình!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "reviews"]
+            },
+            "description": "Khách hàng gửi một đánh giá mới (từ 1 đến 5 sao kèm bình luận nhận xét). Trả về HTTP 201 Created."
+          },
+          "response": []
+        },
+        {
+          "name": "15. DELETE /api/v1/reviews/{id} - Xóa đánh giá vi phạm",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reviews/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "reviews", "1"]
+            },
+            "description": "Quản trị viên xóa một đánh giá không phù hợp hoặc vi phạm chính sách khỏi hệ thống. Trả về HTTP 204 No Content."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Orders & Checkout (Đơn đặt hàng & Trừ tồn kho)",
+      "description": "Phân hệ 3A: Tiếp nhận đơn hàng, áp dụng voucher và tự động khấu trừ tồn kho giao dịch (@Transactional) (4 APIs)",
+      "item": [
+        {
+          "name": "16. GET /api/v1/orders - Toàn bộ danh sách đơn đặt hàng",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Lấy toàn bộ danh sách đơn đặt hàng trong hệ thống phục vụ quản lý bán hàng và thống kê doanh thu."
+          },
+          "response": []
+        },
+        {
+          "name": "17. GET /api/v1/orders/{id} - Chi tiết đơn hàng kèm danh sách món",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", "1"]
+            },
+            "description": "Xem chi tiết một đơn đặt hàng bao gồm thông tin giao hàng, voucher áp dụng và danh sách chi tiết các món orderItems."
+          },
+          "response": []
+        },
+        {
+          "name": "18. POST /api/v1/orders - Đặt hàng mới (Áp mã voucher & Tự động trừ tồn kho)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerName\": \"Phạm Ngọc Lang\",\n  \"phone\": \"0353700780\",\n  \"shippingAddress\": \"Khu Công Nghệ Cao, TP. Thủ Đức, TP. Hồ Chí Minh\",\n  \"promoCode\": \"MWG5\",\n  \"branchId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 1\n    },\n    {\n      \"productId\": 5,\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Tạo đơn đặt hàng mới. Hệ thống tự động: tìm/tạo khách hàng theo SĐT, áp mã giảm giá promoCode, tính tổng tiền và trừ số lượng tồn kho tại chi nhánh tương ứng trong giao dịch @Transactional. Trả về HTTP 201 Created."
+          },
+          "response": []
+        },
+        {
+          "name": "19. PUT /api/v1/orders/{id}/status - Cập nhật trạng thái đơn hàng",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/1/status?status=CONFIRMED",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", "1", "status"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "CONFIRMED",
+                  "description": "Trạng thái mới: PENDING, CONFIRMED, COMPLETED, CANCELLED"
+                }
+              ]
+            },
+            "description": "Nhân viên siêu thị cập nhật trạng thái đơn hàng (PENDING, CONFIRMED, COMPLETED, CANCELLED). Trả về HTTP 200 OK."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Customers (Khách hàng thành viên)",
+      "description": "Phân hệ 3B: Hồ sơ khách hàng thành viên Điện Máy Xanh (5 APIs)",
+      "item": [
+        {
+          "name": "20. GET /api/v1/customers - Toàn bộ danh sách khách hàng",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "customers"]
+            },
+            "description": "Lấy danh sách toàn bộ khách hàng thành viên đã đăng ký hoặc từng mua hàng trong hệ thống."
+          },
+          "response": []
+        },
+        {
+          "name": "21. GET /api/v1/customers/{id} - Chi tiết hồ sơ 1 khách hàng",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "customers", "1"]
+            },
+            "description": "Tra cứu thông tin cá nhân chi tiết của 1 khách hàng thành viên theo ID."
+          },
+          "response": []
+        },
+        {
+          "name": "22. POST /api/v1/customers - Đăng ký hồ sơ khách hàng mới",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Trần Thị Mai Anh\",\n  \"phone\": \"0988776655\",\n  \"email\": \"maianh.tran@gmail.com\",\n  \"address\": \"45 Lê Lợi, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "customers"]
+            },
+            "description": "Đăng ký mới hồ sơ khách hàng thành viên vào hệ thống. Trả về HTTP 201 Created."
+          },
+          "response": []
+        },
+        {
+          "name": "23. PUT /api/v1/customers/{id} - Cập nhật thông tin khách hàng",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Phạm Ngọc Lang (VIP Silver)\",\n  \"phone\": \"0353700780\",\n  \"email\": \"ngoclang.dev@gmail.com\",\n  \"address\": \"Số 1 Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức, TP. Hồ Chí Minh\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "customers", "1"]
+            },
+            "description": "Cập nhật họ tên, email hoặc địa chỉ giao nhận của khách hàng theo ID. Trả về HTTP 200 OK."
+          },
+          "response": []
+        },
+        {
+          "name": "24. DELETE /api/v1/customers/{id} - Xóa hồ sơ khách hàng",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "customers", "1"]
+            },
+            "description": "Xóa một hồ sơ khách hàng khỏi hệ thống theo ID. Trả về HTTP 204 No Content."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 - Promotions (Chương trình khuyến mãi & Voucher)",
+      "description": "Phân hệ 3C: Quản lý mã voucher giảm giá và chương trình khuyến mãi (5 APIs)",
+      "item": [
+        {
+          "name": "25. GET /api/v1/promotions - Toàn bộ danh sách voucher khuyến mãi",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/promotions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "promotions"]
+            },
+            "description": "Lấy danh sách tất cả các chương trình khuyến mãi và mã voucher giảm giá (MWG5, TET2027, HE2027...)."
+          },
+          "response": []
+        },
+        {
+          "name": "26. GET /api/v1/promotions/{id} - Chi tiết 1 chương trình khuyến mãi",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/promotions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "promotions", "1"]
+            },
+            "description": "Xem chi tiết một chương trình khuyến mãi (mã code, tỷ lệ chiết khấu, trạng thái kích hoạt) theo ID."
+          },
+          "response": []
+        },
+        {
+          "name": "27. POST /api/v1/promotions - Phát hành mã voucher khuyến mãi mới",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"promoCode\": \"HE2027\",\n  \"discountPercent\": 10.0,\n  \"description\": \"Chương trình giải nhiệt mùa hè 2027 giảm ngay 10% cho toàn bộ sản phẩm máy lạnh và tủ lạnh\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/promotions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "promotions"]
+            },
+            "description": "Phát hành mới một mã voucher giảm giá vào CSDL. Trả về HTTP 201 Created."
+          },
+          "response": []
+        },
+        {
+          "name": "28. PUT /api/v1/promotions/{id} - Cập nhật chương trình khuyến mãi",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"promoCode\": \"MWG5\",\n  \"discountPercent\": 7.0,\n  \"description\": \"Voucher thành viên thân thiết MWG - Nâng cấp mức giảm lên 7%\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/promotions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "promotions", "1"]
+            },
+            "description": "Cập nhật tỷ lệ giảm giá, mô tả hoặc bật/tắt trạng thái kích hoạt của voucher khuyến mãi theo ID. Trả về HTTP 200 OK."
+          },
+          "response": []
+        },
+        {
+          "name": "29. DELETE /api/v1/promotions/{id} - Xóa chương trình khuyến mãi",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/promotions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "promotions", "1"]
+            },
+            "description": "Xóa một chương trình khuyến mãi khỏi hệ thống theo ID. Trả về HTTP 204 No Content."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
