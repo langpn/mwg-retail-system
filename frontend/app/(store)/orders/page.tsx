@@ -9,6 +9,25 @@ import { AppHeader } from '@/components/dmx/app-header'
 import { SiteFooter } from '@/components/dmx/site-footer'
 import { cn } from '@/lib/utils'
 
+const ORDER_STATUS_MAP: Record<string, { label: string; badgeClass: string }> = {
+  PENDING: {
+    label: '🟠 Chờ siêu thị duyệt',
+    badgeClass: 'bg-amber-100 text-amber-800',
+  },
+  CONFIRMED: {
+    label: '🔵 Đang chuẩn bị hàng',
+    badgeClass: 'bg-blue-100 text-blue-800',
+  },
+  COMPLETED: {
+    label: '🟢 Giao hàng thành công',
+    badgeClass: 'bg-emerald-100 text-emerald-800',
+  },
+  CANCELLED: {
+    label: '🔴 Đã hủy đơn hàng',
+    badgeClass: 'bg-rose-100 text-rose-800',
+  },
+}
+
 export default function OrdersPage() {
   const { customer, orders, reloadFromBackend } = useStore()
   const [phoneQuery, setPhoneQuery] = useState('')
@@ -84,12 +103,10 @@ export default function OrdersPage() {
                   <span
                     className={cn(
                       'rounded-md px-2.5 py-1 text-[11px] font-black',
-                      o.status === 'CONFIRMED'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800',
+                      (ORDER_STATUS_MAP[o.status] || ORDER_STATUS_MAP.PENDING).badgeClass,
                     )}
                   >
-                    {o.status === 'CONFIRMED' ? '🟢 Siêu thị đã duyệt đơn' : '🟠 Chờ siêu thị duyệt'}
+                    {(ORDER_STATUS_MAP[o.status] || { label: o.status }).label}
                   </span>
                 </div>
 

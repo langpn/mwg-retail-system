@@ -2,7 +2,7 @@ export type CategoryId = 'all' | 'washer' | 'fridge' | 'tv' | 'small'
 export type BrandId = 'Toshiba' | 'Samsung' | 'LG' | 'Panasonic'
 export type BranchId = 'q9' | 'td'
 export type BudgetId = 'any' | 'lt8' | 'lt10' | 'lt15' | 'premium'
-export type OrderStatus = 'PENDING' | 'CONFIRMED'
+export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
 
 export interface Branch {
   id: BranchId
