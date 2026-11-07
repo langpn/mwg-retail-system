@@ -15,9 +15,7 @@ import { useStore } from '@/components/dmx/store-provider'
 import { AppHeader } from '@/components/dmx/app-header'
 import { SiteFooter } from '@/components/dmx/site-footer'
 import { api, ApiError } from '@/lib/api'
-
-// Định danh được cấp quyền Quản trị viên (Admin)
-const ADMIN_IDENTIFIERS = ['0900000000', '0987654321', 'admin']
+import { ADMIN_PROFILE, isAdminIdentifier } from '@/lib/auth-config'
 
 export default function AuthPage() {
   return <AuthContent />
@@ -52,15 +50,8 @@ function AuthContent() {
     }
 
     // 1. Quản trị viên: Chuyển thẳng vào Bảng điều khiển Quản trị (/dashboard)
-    const lower = identifier.toLowerCase()
-    if (ADMIN_IDENTIFIERS.includes(lower) || ADMIN_IDENTIFIERS.includes(identifier)) {
-      loginCustomer({
-        id: 999,
-        fullName: 'Quản trị viên',
-        phone: identifier,
-        email: 'admin@dmx.mwg.vn',
-        role: 'ADMIN',
-      })
+    if (isAdminIdentifier(identifier)) {
+      loginCustomer({ ...ADMIN_PROFILE, phone: identifier })
       setNotification('Đăng nhập Quản trị viên thành công! Đang mở trang Quản trị...')
       setTimeout(() => {
         router.push('/dashboard')

@@ -19,6 +19,7 @@ import {
   CATEGORY_ID_TO_CODE,
 } from '@/lib/catalog'
 import { submitOrder, type OrderItemInput } from '@/lib/order-service'
+import { CUSTOMER_STORAGE_KEY } from '@/lib/auth-config'
 
 export type ViewTab = 'catalog' | 'inventory'
 export type SortOption = 'default' | 'price-asc' | 'price-desc' | 'discount'
@@ -140,19 +141,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('mwg_customer_v1')
+      const saved = localStorage.getItem(CUSTOMER_STORAGE_KEY)
       if (saved) setCustomer(JSON.parse(saved))
     } catch {}
   }, [])
 
   const loginCustomer = useCallback((profile: CustomerProfile) => {
     setCustomer(profile)
-    try { localStorage.setItem('mwg_customer_v1', JSON.stringify(profile)) } catch {}
+    try { localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify(profile)) } catch {}
   }, [])
 
   const logoutCustomer = useCallback(() => {
     setCustomer(null)
-    try { localStorage.removeItem('mwg_customer_v1') } catch {}
+    try { localStorage.removeItem(CUSTOMER_STORAGE_KEY) } catch {}
   }, [])
 
   /* ── Cart persistence ── */
@@ -186,28 +187,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [products, persistCart])
 
   const addToCart = useCallback((product: Product, quantity = 1) => {
+    // Số lượng tối đa = tồn kho thật của chi nhánh đang chọn
+    const stock = product.stock[branchId] ?? 0
+    if (stock <= 0) return
     setCart((prev) => {
       const existing = prev.find((item) => item.product.sku === product.sku)
       const updated = existing
         ? prev.map((item) =>
             item.product.sku === product.sku
-              ? { ...item, quantity: Math.min(5, item.quantity + quantity) }
+              ? { ...item, quantity: Math.min(stock, item.quantity + quantity) }
               : item,
           )
-        : [...prev, { product, quantity }]
+        : [...prev, { product, quantity: Math.min(stock, quantity) }]
       persistCart(updated)
       return updated
     })
-  }, [persistCart])
+  }, [persistCart, branchId])
 
   const updateCartQty = useCallback((sku: string, quantity: number) => {
-    const qty = Math.max(1, Math.min(5, Math.floor(quantity)))
+    const inCart = cart.find((item) => item.product.sku === sku)
+    const stock = inCart?.product.stock[branchId] ?? 1
+    const qty = Math.max(1, Math.min(Math.max(1, stock), Math.floor(quantity)))
     setCart((prev) => {
       const updated = prev.map((item) => item.product.sku === sku ? { ...item, quantity: qty } : item)
       persistCart(updated)
       return updated
     })
-  }, [persistCart])
+  }, [persistCart, cart, branchId])
 
   const removeFromCart = useCallback((sku: string) => {
     setCart((prev) => {

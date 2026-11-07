@@ -45,6 +45,7 @@ import {
   type ProductInput,
   type ReviewInput,
 } from '@/lib/api'
+import { ADMIN_PROFILE, CUSTOMER_STORAGE_KEY, isValidAdminPin } from '@/lib/auth-config'
 
 /* ── Types ── */
 type Section = 'overview' | 'products' | 'orders' | 'customers' | 'promotions' | 'reviews'
@@ -75,7 +76,7 @@ export function DashboardApp() {
     ping().then(setConnected)
 
     try {
-      const saved = localStorage.getItem('mwg_customer_v1')
+      const saved = localStorage.getItem(CUSTOMER_STORAGE_KEY)
       if (saved) {
         const parsed = JSON.parse(saved)
         if (parsed.role === 'ADMIN') {
@@ -103,21 +104,11 @@ export function DashboardApp() {
             onSubmit={(e) => {
               e.preventDefault()
               const pin = adminPin.trim()
-              if (
-                pin === '172004' ||
-                pin.toLowerCase() === 'admin' ||
-                pin === '0900000000' ||
-                pin === '0987654321'
-              ) {
+              if (isValidAdminPin(pin)) {
                 try {
                   localStorage.setItem(
-                    'mwg_customer_v1',
-                    JSON.stringify({
-                      id: 999,
-                      fullName: 'Quản trị viên hệ thống',
-                      phone: pin,
-                      role: 'ADMIN',
-                    }),
+                    CUSTOMER_STORAGE_KEY,
+                    JSON.stringify({ ...ADMIN_PROFILE, phone: pin }),
                   )
                 } catch {}
                 setIsAdmin(true)
@@ -258,7 +249,7 @@ export function DashboardApp() {
               type="button"
               onClick={() => {
                 try {
-                  localStorage.removeItem('mwg_customer_v1')
+                  localStorage.removeItem(CUSTOMER_STORAGE_KEY)
                 } catch {}
                 setIsAdmin(false)
               }}

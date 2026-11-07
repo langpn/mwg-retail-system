@@ -178,7 +178,7 @@ function CartContent() {
                       <button
                         type="button"
                         onClick={() => updateCartQty(product.sku, quantity + 1)}
-                        disabled={quantity >= 5}
+                        disabled={quantity >= (product.stock[branchId] ?? 0)}
                         className="flex size-9 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
                         aria-label="Tăng số lượng"
                       >

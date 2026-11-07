@@ -58,9 +58,13 @@ export function mapBackendProduct(
   existingStock?: Record<BranchId, number>,
 ): Product {
   const display = INITIAL_PRODUCTS.find((item) => item.sku === product.sku)
-  const listPrice = display && display.listPrice > product.price
-    ? display.listPrice
-    : Math.max(product.price + 1, Math.round(product.price * 1.22 / 10_000) * 10_000)
+  // Giá niêm yết chỉ dùng từ dữ liệu mẫu nếu mức giảm còn thực tế (tối đa ~40%).
+  // Tránh hiển thị "giá gạch" ảo không có trong CSDL.
+  const mockList = display?.listPrice ?? 0
+  const listPrice =
+    mockList > product.price && mockList <= product.price * 1.4
+      ? mockList
+      : Math.max(product.price + 1, Math.round((product.price * 1.15) / 10_000) * 10_000)
   const mapped: Product = {
     id: product.id,
     sku: product.sku,

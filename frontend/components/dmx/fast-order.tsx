@@ -67,7 +67,7 @@ function CheckoutForm() {
   const [success, setSuccess] = useState<Order | null>(null)
 
   const available = product.stock[branch]
-  const maxQty = Math.max(1, Math.min(5, available))
+  const maxQty = Math.max(1, available) // tối đa bằng tồn kho thật của chi nhánh
   const promoKey = promo.trim().toUpperCase()
   const quote = usePriceQuote([{ product, quantity }], promoKey, branch, products, backendConnected)
   const { subtotal, discount, total } = quote
@@ -284,7 +284,7 @@ function CheckoutForm() {
                     disabled={stock === 0}
                     onChange={() => {
                       setBranch(b.id)
-                      setQuantity((q) => Math.min(q, Math.max(1, Math.min(5, stock))))
+                      setQuantity((q) => Math.min(q, Math.max(1, stock)))
                     }}
                     className="sr-only"
                   />
