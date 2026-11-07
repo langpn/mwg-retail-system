@@ -332,12 +332,12 @@ class DemojpaApplicationTests {
 
     /**
      * Test 7: Kiểm chứng Server-Side Pagination thật ở tầng CSDL (Pageable + LIMIT/OFFSET).
-     * Yêu cầu: 16 sản phẩm seed sẵn, pageSize 6 => 3 trang; sắp xếp giá tăng dần
+     * Yêu cầu: 32 sản phẩm seed sẵn, pageSize 6 => 6 trang; sắp xếp giá tăng dần
      * thì phần tử đầu tiên phải là sản phẩm rẻ nhất (Nồi chiên Toshiba 1.990.000đ);
-     * trang cuối (page=2) chỉ còn 4 phần tử và cờ last = true.
+     * trang cuối (page=5) chỉ còn 2 phần tử và cờ last = true.
      */
     @Test
-    @DisplayName("7. Server-Side Pagination: GET /api/v1/products/page trả totalElements=16, totalPages=3, trang cuối 4 phần tử")
+    @DisplayName("7. Server-Side Pagination: GET /api/v1/products/page trả totalElements=32, totalPages=6, trang cuối 2 phần tử")
     void productPaginationEndpointWorks() throws Exception {
         // 1. Trang đầu tiên: page=0, size=6, sắp xếp giá tăng dần
         mockMvc.perform(get("/api/v1/products/page")
@@ -347,8 +347,8 @@ class DemojpaApplicationTests {
                         .param("sortDir", "asc"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.totalElements", is(16)))
-                .andExpect(jsonPath("$.totalPages", is(3)))
+                .andExpect(jsonPath("$.totalElements", is(32)))
+                .andExpect(jsonPath("$.totalPages", is(6)))
                 .andExpect(jsonPath("$.page", is(0)))
                 .andExpect(jsonPath("$.size", is(6)))
                 .andExpect(jsonPath("$.first", is(true)))
@@ -363,38 +363,38 @@ class DemojpaApplicationTests {
                 // Giá phải đơn điệu tăng trong trang
                 .andExpect(jsonPath("$.content[1].price", greaterThanOrEqualTo(1990000.0)));
 
-        // 2. Trang cuối cùng: page=2, size=6 => chỉ còn 16 - 12 = 4 phần tử, last = true
+        // 2. Trang cuối cùng: page=5, size=6 => chỉ còn 32 - 30 = 2 phần tử, last = true
         mockMvc.perform(get("/api/v1/products/page")
-                        .param("page", "2")
+                        .param("page", "5")
                         .param("size", "6")
                         .param("sortBy", "price")
                         .param("sortDir", "asc"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.page", is(2)))
-                .andExpect(jsonPath("$.totalElements", is(16)))
-                .andExpect(jsonPath("$.totalPages", is(3)))
-                .andExpect(jsonPath("$.content", hasSize(4)))
+                .andExpect(jsonPath("$.page", is(5)))
+                .andExpect(jsonPath("$.totalElements", is(32)))
+                .andExpect(jsonPath("$.totalPages", is(6)))
+                .andExpect(jsonPath("$.content", hasSize(2)))
                 .andExpect(jsonPath("$.first", is(false)))
                 .andExpect(jsonPath("$.last", is(true)))
                 // Giá cao nhất toàn hệ thống nằm ở cuối trang cuối: Tủ lạnh LG 32.490.000đ
-                .andExpect(jsonPath("$.content[3].sku", is("DMX-TL-004")))
-                .andExpect(jsonPath("$.content[3].price", is(closeTo(32490000.0, 0.01))));
+                .andExpect(jsonPath("$.content[1].sku", is("DMX-TL-004")))
+                .andExpect(jsonPath("$.content[1].price", is(closeTo(32490000.0, 0.01))));
 
-        // 3. Lọc kết hợp phân trang: chỉ danh mục GIADUNG (4 SKU) => 1 trang duy nhất
+        // 3. Lọc kết hợp phân trang: chỉ danh mục GIADUNG (8 SKU) => 2 trang (size=6)
         mockMvc.perform(get("/api/v1/products/page")
                         .param("page", "0")
                         .param("size", "6")
                         .param("category", "GIADUNG"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", is(4)))
-                .andExpect(jsonPath("$.totalPages", is(1)))
-                .andExpect(jsonPath("$.content", hasSize(4)))
+                .andExpect(jsonPath("$.totalElements", is(8)))
+                .andExpect(jsonPath("$.totalPages", is(2)))
+                .andExpect(jsonPath("$.content", hasSize(6)))
                 .andExpect(jsonPath("$.first", is(true)))
-                .andExpect(jsonPath("$.last", is(true)));
+                .andExpect(jsonPath("$.last", is(false)));
 
-        // 4. Lọc nhiều thương hiệu cùng lúc (brand="Toshiba,Panasonic") + khoảng giá
-        //    Toshiba trong khoảng 2-10tr: MG-001 (7.49tr), TL-002 (8.49tr), TV-003 (9.49tr)
-        //    Panasonic trong khoảng 2-10tr: MG-003 (9.89tr), GD-002 (4.29tr) => tổng 5 SKU
+        // 4. Lọc nhiều thương hiệu cùng lúc (brand="Toshiba,Panasonic") + khoảng giá 2-10tr
+        //    Toshiba: MG-001 (7.49tr), MG-005 (5.49tr), TL-002 (8.49tr), TL-005 (5.79tr), TV-003 (9.49tr), GD-005 (3.49tr) => 6 SKU
+        //    Panasonic: MG-003 (9.89tr), GD-002 (4.29tr), GD-006 (2.89tr) => 3 SKU => tổng 9 SKU
         mockMvc.perform(get("/api/v1/products/page")
                         .param("page", "0")
                         .param("size", "50")
@@ -402,7 +402,7 @@ class DemojpaApplicationTests {
                         .param("minPrice", "2000000")
                         .param("maxPrice", "10000000"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", is(5)))
+                .andExpect(jsonPath("$.totalElements", is(9)))
                 .andExpect(jsonPath("$.content[*].brand.name", everyItem(anyOf(is("Toshiba"), is("Panasonic")))))
                 .andExpect(jsonPath("$.content[*].price", everyItem(allOf(
                         greaterThanOrEqualTo(2000000.0),
@@ -418,7 +418,7 @@ class DemojpaApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page", is(0)))
                 .andExpect(jsonPath("$.size", is(50)))
-                .andExpect(jsonPath("$.content", hasSize(16)))
+                .andExpect(jsonPath("$.content", hasSize(32)))
                 .andExpect(jsonPath("$.content[0].sku", is("DMX-MG-001")));
     }
 
@@ -703,15 +703,15 @@ class DemojpaApplicationTests {
     // ========================================================================
 
     /**
-     * Test 9a: GET /api/v1/inventory/stock-matrix trả về đúng 32 dòng (16 sản phẩm × 2 chi nhánh).
+     * Test 9a: GET /api/v1/inventory/stock-matrix trả về đúng 64 dòng (32 sản phẩm × 2 chi nhánh).
      */
     @Test
-    @DisplayName("9a. GET /api/v1/inventory/stock-matrix trả về 32 dòng (16 SP × 2 chi nhánh)")
+    @DisplayName("9a. GET /api/v1/inventory/stock-matrix trả về 64 dòng (32 SP × 2 chi nhánh)")
     void stockMatrixReturns32Entries() throws Exception {
         mockMvc.perform(get("/api/v1/inventory/stock-matrix"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$", hasSize(32)))
+                .andExpect(jsonPath("$", hasSize(64)))
                 .andExpect(jsonPath("$[0].productId").exists())
                 .andExpect(jsonPath("$[0].sku").exists())
                 .andExpect(jsonPath("$[0].branchId").exists())
