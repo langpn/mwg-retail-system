@@ -60,11 +60,12 @@ Khi bất kỳ thành viên nào sửa code trong `frontend/app/` hoặc `fronte
 # 1. Build gói tĩnh Next.js ra thư mục frontend/out/
 cd frontend
 pnpm install
+pnpm test          # 17 unit test cho module thuần (giá, map dữ liệu, ghép tồn kho)
+npx tsc --noEmit   # kiểm tra kiểu nghiêm, phải ra 0 lỗi
 pnpm build
 
 # 2. Đồng bộ sạch sang thư mục static của Spring Boot
-rm -rf ../backend/src/main/resources/static/*
-cp -R out/. ../backend/src/main/resources/static/
+rsync -a --delete out/ ../backend/src/main/resources/static/
 ```
 
 ---
