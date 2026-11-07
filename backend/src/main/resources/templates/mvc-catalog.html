@@ -702,7 +702,7 @@
         <div class="info-card">
             <div class="info-content">
                 <h2>MINH CHỨNG KIẾN TRÚC SPRING MVC + THYMELEAF (IUH STANDARD)</h2>
-                <p>Combobox Danh mục & Thương hiệu được nạp sẵn từ Server qua <code>@Controller</code> + <code>Model</code> (&lt; 100ms, đạt chuẩn dưới 3s của thầy). Thao tác Lọc / Thêm / Sửa / Xóa kết nối trực tiếp 4 HTTP Verbs của REST API.</p>
+                <p>Combobox Danh mục &amp; Thương hiệu được nạp sẵn từ Server qua <code>@Controller</code> + <code>Model</code> (&lt; 100ms, đạt chuẩn dưới 3s của thầy). Bảng sản phẩm dùng <strong>phân trang thật ở tầng CSDL</strong> (<code>Pageable</code> + <code>LIMIT/OFFSET</code>), không tải toàn bộ dữ liệu về trình duyệt.</p>
             </div>
             <div class="metrics-grid">
                 <div class="metric-pill">
@@ -718,8 +718,12 @@
                     <strong th:text="${branches != null ? branches.size() : 0}">0</strong>
                 </div>
                 <div class="metric-pill">
-                    <span>Sản phẩm khởi tạo:</span>
-                    <strong id="serverProductCount" th:text="${initialProducts != null ? initialProducts.size() : 0}">0</strong>
+                    <span>Tổng sản phẩm:</span>
+                    <strong id="serverProductCount" th:text="${initialTotalElements != null ? initialTotalElements : 0}">0</strong>
+                </div>
+                <div class="metric-pill">
+                    <span>Tổng số trang:</span>
+                    <strong id="serverTotalPages" th:text="${initialTotalPages != null ? initialTotalPages : 0}">0</strong>
                 </div>
             </div>
         </div>
@@ -767,25 +771,33 @@
                     </select>
                 </div>
 
+                <!-- Filter: Min Price -->
+                <div class="form-group">
+                    <label class="form-label" for="filterMinPrice">3. Giá Tối Thiểu (VNĐ)</label>
+                    <input type="number" id="filterMinPrice" class="form-input" placeholder="Ví dụ: 2000000" step="500000">
+                </div>
+
                 <!-- Filter: Max Price -->
                 <div class="form-group">
-                    <label class="form-label" for="filterMaxPrice">3. Mức Giá Trần (VNĐ)</label>
+                    <label class="form-label" for="filterMaxPrice">4. Mức Giá Trần (VNĐ)</label>
                     <input type="number" id="filterMaxPrice" class="form-input" placeholder="Ví dụ: 15000000" step="500000">
                 </div>
 
                 <!-- Filter: Keyword -->
                 <div class="form-group">
-                    <label class="form-label" for="filterKeyword">4. Từ Khóa Tìm Kiếm</label>
-                    <input type="text" id="filterKeyword" class="form-input" placeholder="Tên sản phẩm, thông số...">
+                    <label class="form-label" for="filterKeyword">5. Từ Khóa Tìm Kiếm</label>
+                    <input type="text" id="filterKeyword" class="form-input" placeholder="Tên sản phẩm, SKU, thông số...">
                 </div>
 
                 <!-- Sort Order -->
                 <div class="form-group">
-                    <label class="form-label" for="sortOrder">5. Sắp Xếp Giá Bán</label>
+                    <label class="form-label" for="sortOrder">6. Sắp Xếp (Server-Side)</label>
                     <select id="sortOrder" class="form-select">
-                        <option value="default">Mặc định</option>
-                        <option value="asc">Giá: Thấp đến Cao</option>
-                        <option value="desc">Giá: Cao đến Thấp</option>
+                        <option value="default">Mặc định (ID tăng dần)</option>
+                        <option value="price:asc">Giá: Thấp đến Cao</option>
+                        <option value="price:desc">Giá: Cao đến Thấp</option>
+                        <option value="name:asc">Tên: A đến Z</option>
+                        <option value="sku:asc">Mã SKU: A đến Z</option>
                     </select>
                 </div>
             </div>
@@ -822,12 +834,13 @@
         <section class="table-card">
             <div class="table-header-bar">
                 <div class="table-header-title">
-                    Danh Sách Sản Phẩm Điện Máy (<span id="totalDisplayCount" th:text="${initialProducts != null ? initialProducts.size() : 0}">0</span> mặt hàng)
+                    Danh Sách Sản Phẩm Điện Máy (<span id="totalDisplayCount" th:text="${initialTotalElements != null ? initialTotalElements : 0}">0</span> mặt hàng)
                 </div>
                 <div style="font-size: 12px; color: var(--dmx-muted);">
                     Hiển thị 
                     <select id="pageSizeSelect" class="form-select" style="display: inline-block; width: auto; padding: 3px 8px; font-size: 12px;" onchange="changePageSize()">
-                        <option value="8" selected>8 / trang</option>
+                        <option value="6" selected>6 / trang</option>
+                        <option value="8">8 / trang</option>
                         <option value="15">15 / trang</option>
                         <option value="30">30 / trang</option>
                     </select>
@@ -996,12 +1009,21 @@
     <div id="toastContainer" class="toast-container"></div>
 
     <!-- Vanilla JavaScript: AJAX / Fetch API (Relative Paths) -->
-    <script>
-        // State
-        let allProducts = [];
-        let currentPage = 1;
-        let pageSize = 8;
-        let isInitialServerRender = true;
+    <script th:inline="javascript">
+        // ============================================================
+        // STATE: Phân trang THẬT ở tầng Server (Spring Data Pageable)
+        //  - Client KHÔNG giữ mảng toàn bộ sản phẩm nữa.
+        //  - Mỗi lần đổi trang / lọc / sắp xếp => gọi GET /api/v1/products/page
+        //    và chỉ nhận đúng pageSize bản ghi (LIMIT/OFFSET dưới CSDL).
+        // ============================================================
+        let currentPage = 1;          // UI dùng 1-based cho dễ đọc
+        let pageSize = 6;             // 16 sản phẩm => 3 trang (6 + 6 + 4)
+        let totalPages = 0;
+        let totalElements = 0;
+
+        // Giá trị SSR do Thymeleaf nhúng sẵn => render thanh số trang ngay, không cần chờ AJAX
+        const INITIAL_TOTAL_ELEMENTS = /*[[${initialTotalElements}]]*/ 16;
+        const INITIAL_TOTAL_PAGES = /*[[${initialTotalPages}]]*/ 3;
 
         // Định dạng tiền tệ VNĐ chuẩn Việt Nam
         function formatVND(amount) {
@@ -1038,81 +1060,122 @@
             }, 3500);
         }
 
-        // Gọi REST API: GET /api/v1/products kết hợp lọc đa tiêu chí
-        async function fetchProducts() {
-            const category = document.getElementById("filterCategory").value;
-            const brand = document.getElementById("filterBrand").value;
-            const maxPrice = document.getElementById("filterMaxPrice").value;
-            const keyword = document.getElementById("filterKeyword").value.trim();
+        // Đọc bộ lọc hiện tại trên toolbar
+        function readFilters() {
+            return {
+                category: document.getElementById("filterCategory").value,
+                brand: document.getElementById("filterBrand").value,
+                minPrice: document.getElementById("filterMinPrice").value,
+                maxPrice: document.getElementById("filterMaxPrice").value,
+                keyword: document.getElementById("filterKeyword").value.trim()
+            };
+        }
+
+        // Đọc lựa chọn sắp xếp -> { sortBy, sortDir } đúng whitelist của Backend
+        function readSort() {
+            const value = document.getElementById("sortOrder").value;
+            if (!value || value === "default") {
+                return { sortBy: "id", sortDir: "asc" };
+            }
+            const parts = value.split(":");
+            return { sortBy: parts[0] || "id", sortDir: parts[1] || "asc" };
+        }
+
+        // ============================================================
+        // Gọi REST API PHÂN TRANG THẬT: GET /api/v1/products/page
+        // Trả về JSON phẳng: { content, page, size, totalElements, totalPages, first, last }
+        // ============================================================
+        async function fetchProductsPage(page) {
+            const filters = readFilters();
+            const sort = readSort();
 
             const params = new URLSearchParams();
-            if (category) params.append("category", category);
-            if (brand) params.append("brand", brand);
-            if (maxPrice) params.append("maxPrice", maxPrice);
-            if (keyword) params.append("keyword", keyword);
+            params.append("page", String(page - 1)); // Backend 0-based, UI 1-based
+            params.append("size", String(pageSize));
+            params.append("sortBy", sort.sortBy);
+            params.append("sortDir", sort.sortDir);
+            if (filters.category) params.append("category", filters.category);
+            if (filters.brand) params.append("brand", filters.brand);
+            if (filters.minPrice) params.append("minPrice", filters.minPrice);
+            if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+            if (filters.keyword) params.append("keyword", filters.keyword);
 
-            const queryString = params.toString();
-            const url = "/api/v1/products" + (queryString ? "?" + queryString : "");
+            const url = "/api/v1/products/page?" + params.toString();
 
             try {
                 const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
+                // JSON phẳng chuẩn: không còn cảnh báo serialize PageImpl
                 const data = await response.json();
-                allProducts = data;
-                isInitialServerRender = false;
-                currentPage = 1;
-                applySorting();
-                renderTable();
-                showToast(`Nạp thành công ${data.length} sản phẩm`, `GET 200 OK`, "success");
+
+                totalElements = data.totalElements || 0;
+                totalPages = data.totalPages || 0;
+
+                // Server trả trang rỗng (ví dụ page vượt quá) => lùi về trang cuối hợp lệ
+                if (currentPage > totalPages && totalPages > 0) {
+                    currentPage = totalPages;
+                    return fetchProductsPage(currentPage);
+                }
+
+                renderTable(data.content || []);
+                document.getElementById("totalDisplayCount").textContent = totalElements;
+                document.getElementById("serverProductCount").textContent = totalElements;
+                document.getElementById("serverTotalPages").textContent = totalPages;
+
+                showToast(
+                    `Trang ${data.page + 1}/${data.totalPages} — ${data.content.length} sản phẩm (tổng ${data.totalElements})`,
+                    "GET /products/page 200 OK",
+                    "success"
+                );
+                return data;
             } catch (err) {
-                console.error("Lỗi khi tải danh sách sản phẩm:", err);
+                console.error("Lỗi khi tải danh sách sản phẩm phân trang:", err);
                 showToast(`Không thể tải dữ liệu: ${err.message}`, "LỖI", "danger");
+                return null;
             }
         }
 
+        // Tương thích với các chỗ gọi fetchProducts() cũ (sau POST / PUT / DELETE)
+        function fetchProducts() {
+            return fetchProductsPage(currentPage);
+        }
+
         function applyFilter() {
-            fetchProducts();
+            currentPage = 1;
+            fetchProductsPage(currentPage);
         }
 
         function resetFilters() {
             document.getElementById("filterCategory").value = "";
             document.getElementById("filterBrand").value = "";
+            document.getElementById("filterMinPrice").value = "";
             document.getElementById("filterMaxPrice").value = "";
             document.getElementById("filterKeyword").value = "";
             document.getElementById("sortOrder").value = "default";
-            fetchProducts();
+            currentPage = 1;
+            fetchProductsPage(currentPage);
         }
 
         function changePageSize() {
-            pageSize = parseInt(document.getElementById("pageSizeSelect").value, 10);
+            pageSize = parseInt(document.getElementById("pageSizeSelect").value, 10) || 6;
             currentPage = 1;
-            renderTable();
+            fetchProductsPage(currentPage);
         }
 
-        // Lắng nghe thay đổi sắp xếp
+        // Sắp xếp do SERVER thực hiện; chỉ cần gọi lại API với sortBy/sortDir mới
         document.getElementById("sortOrder").addEventListener("change", () => {
-            applySorting();
-            renderTable();
+            currentPage = 1;
+            fetchProductsPage(currentPage);
         });
 
-        function applySorting() {
-            const sortMode = document.getElementById("sortOrder").value;
-            if (sortMode === "asc") {
-                allProducts.sort((a, b) => (a.price || 0) - (b.price || 0));
-            } else if (sortMode === "desc") {
-                allProducts.sort((a, b) => (b.price || 0) - (a.price || 0));
-            }
-        }
-
-        // Render lại tbody và phân trang khi Client có dữ liệu mới
-        function renderTable() {
+        // Render tbody từ đúng pageSize bản ghi Server trả về (không cắt mảng ở Client)
+        function renderTable(products) {
             const tbody = document.getElementById("productTableBody");
-            const totalCount = allProducts.length;
-            document.getElementById("totalDisplayCount").textContent = totalCount;
+            const startIndex = (currentPage - 1) * pageSize;
 
-            if (totalCount === 0) {
+            if (!products || products.length === 0) {
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="8" style="text-align: center; padding: 30px; color: var(--dmx-muted);">
@@ -1125,16 +1188,8 @@
                 return;
             }
 
-            const totalPages = Math.ceil(totalCount / pageSize);
-            if (currentPage > totalPages) currentPage = totalPages;
-            if (currentPage < 1) currentPage = 1;
-
-            const startIndex = (currentPage - 1) * pageSize;
-            const endIndex = Math.min(startIndex + pageSize, totalCount);
-            const displayList = allProducts.slice(startIndex, endIndex);
-
             let html = "";
-            displayList.forEach((p, idx) => {
+            products.forEach((p, idx) => {
                 const stt = startIndex + idx + 1;
                 const catName = p.category ? p.category.name : "N/A";
                 const catId = p.category ? p.category.id : null;
@@ -1166,8 +1221,10 @@
             });
             tbody.innerHTML = html;
 
-            // Update Pagination
-            document.getElementById("pageInfo").textContent = `Hiển thị ${startIndex + 1} - ${endIndex} trên tổng ${totalCount} sản phẩm (Trang ${currentPage}/${totalPages})`;
+            // Thông tin trang: dùng totalElements / totalPages do Server trả về
+            const endIndex = Math.min(startIndex + products.length, totalElements);
+            document.getElementById("pageInfo").textContent =
+                `Hiển thị ${startIndex + 1} - ${endIndex} trên tổng ${totalElements} sản phẩm (Trang ${currentPage}/${totalPages})`;
             renderPagination(totalPages);
         }
 
@@ -1190,8 +1247,9 @@
         }
 
         function goToPage(page) {
+            if (page < 1 || (totalPages > 0 && page > totalPages)) return;
             currentPage = page;
-            renderTable();
+            fetchProductsPage(currentPage);
         }
 
         // ================= THÊM MỚI (POST /api/v1/products) =================
@@ -1323,15 +1381,16 @@
             }
         }
 
-        // Khi load trang lần đầu, đồng bộ dữ liệu ban đầu cho pagination nếu cần
+        // Khi load trang lần đầu: SSR đã render sẵn 6 sản phẩm trang 1,
+        // chỉ cần vẽ thanh số trang từ metadata do Server nhúng vào.
         window.addEventListener("DOMContentLoaded", () => {
-            // Nạp dữ liệu nền tự động để sẵn sàng cho phân trang mượt mà
-            fetch("/api/v1/products")
-                .then(r => r.json())
-                .then(data => {
-                    allProducts = data;
-                })
-                .catch(() => {});
+            totalElements = INITIAL_TOTAL_ELEMENTS;
+            totalPages = INITIAL_TOTAL_PAGES;
+            renderPagination(totalPages);
+            document.getElementById("pageInfo").textContent =
+                totalElements > 0
+                    ? `Hiển thị 1 - ${Math.min(pageSize, totalElements)} trên tổng ${totalElements} sản phẩm (Trang 1/${totalPages})`
+                    : "Không có sản phẩm";
         });
     </script>
 </body>

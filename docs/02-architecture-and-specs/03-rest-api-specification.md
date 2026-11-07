@@ -20,11 +20,12 @@
 
 ## 2. Bảng Tổng Hợp Toàn Bộ 27 REST API Endpoints
 
-### 2.1. Phân hệ 1: Sản phẩm, Danh mục & Thương hiệu (`ProductApiController` — 7 APIs)
+### 2.1. Phân hệ 1: Sản phẩm, Danh mục & Thương hiệu (`ProductApiController` — 8 APIs)
 
 | # | Method | Endpoint | Tham số (`Path` / `Query` / `Body`) | Mô tả nghiệp vụ | Status |
 | :-: | :---: | :--- | :--- | :--- | :---: |
-| 1 | `GET` | `/api/v1/products` | Query tùy chọn: `category`, `brand`, `maxPrice`, `keyword` | Lấy danh sách sản phẩm kết hợp lọc đa tiêu chí | `200` |
+| 1a | `GET` | `/api/v1/products` | Query tùy chọn: `category`, `brand`, `maxPrice`, `keyword` | Lấy danh sách sản phẩm lọc đa tiêu chí (`LEFT JOIN FETCH` khử N+1) | `200` |
+| 1b | `GET` | `/api/v1/products/page` | Query: `page`, `size`, `sortBy`, `sortDir`, `category`, `brand`, `minPrice`, `maxPrice`, `keyword` | **Server-Side Pagination (`Pageable` / `LIMIT..OFFSET`)** trả `PagedResponse<Product>` | `200` |
 | 2 | `GET` | `/api/v1/products/{id}` | Path: `id` (`Long`) | Lấy thông tin chi tiết 1 sản phẩm theo ID | `200` / `404` |
 | 3 | `GET` | `/api/v1/products/categories` | *(Không)* | Lấy danh sách toàn bộ danh mục ngành hàng (`Category`) | `200` |
 | 4 | `GET` | `/api/v1/products/brands` | *(Không)* | Lấy danh sách toàn bộ thương hiệu chính hãng (`Brand`) | `200` |

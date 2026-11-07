@@ -301,6 +301,98 @@ class DemojpaApplicationTests {
     }
 
     /**
+     * Test 7: Kiểm chứng Server-Side Pagination thật ở tầng CSDL (Pageable + LIMIT/OFFSET).
+     * Yêu cầu: 16 sản phẩm seed sẵn, pageSize 6 => 3 trang; sắp xếp giá tăng dần
+     * thì phần tử đầu tiên phải là sản phẩm rẻ nhất (Nồi chiên Toshiba 1.990.000đ);
+     * trang cuối (page=2) chỉ còn 4 phần tử và cờ last = true.
+     */
+    @Test
+    @DisplayName("7. Server-Side Pagination: GET /api/v1/products/page trả totalElements=16, totalPages=3, trang cuối 4 phần tử")
+    void productPaginationEndpointWorks() throws Exception {
+        // 1. Trang đầu tiên: page=0, size=6, sắp xếp giá tăng dần
+        mockMvc.perform(get("/api/v1/products/page")
+                        .param("page", "0")
+                        .param("size", "6")
+                        .param("sortBy", "price")
+                        .param("sortDir", "asc"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.totalElements", is(16)))
+                .andExpect(jsonPath("$.totalPages", is(3)))
+                .andExpect(jsonPath("$.page", is(0)))
+                .andExpect(jsonPath("$.size", is(6)))
+                .andExpect(jsonPath("$.first", is(true)))
+                .andExpect(jsonPath("$.last", is(false)))
+                .andExpect(jsonPath("$.content", hasSize(6)))
+                // Sản phẩm rẻ nhất toàn hệ thống: Nồi chiên không dầu Toshiba 1.990.000đ
+                .andExpect(jsonPath("$.content[0].price", is(closeTo(1990000.0, 0.01))))
+                .andExpect(jsonPath("$.content[0].sku", is("DMX-GD-001")))
+                // LEFT JOIN FETCH: Category & Brand phải có sẵn trong cùng payload, không N+1
+                .andExpect(jsonPath("$.content[0].category.name", is("Gia dụng")))
+                .andExpect(jsonPath("$.content[0].brand.name", is("Toshiba")))
+                // Giá phải đơn điệu tăng trong trang
+                .andExpect(jsonPath("$.content[1].price", greaterThanOrEqualTo(1990000.0)));
+
+        // 2. Trang cuối cùng: page=2, size=6 => chỉ còn 16 - 12 = 4 phần tử, last = true
+        mockMvc.perform(get("/api/v1/products/page")
+                        .param("page", "2")
+                        .param("size", "6")
+                        .param("sortBy", "price")
+                        .param("sortDir", "asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page", is(2)))
+                .andExpect(jsonPath("$.totalElements", is(16)))
+                .andExpect(jsonPath("$.totalPages", is(3)))
+                .andExpect(jsonPath("$.content", hasSize(4)))
+                .andExpect(jsonPath("$.first", is(false)))
+                .andExpect(jsonPath("$.last", is(true)))
+                // Giá cao nhất toàn hệ thống nằm ở cuối trang cuối: Tủ lạnh LG 32.490.000đ
+                .andExpect(jsonPath("$.content[3].sku", is("DMX-TL-004")))
+                .andExpect(jsonPath("$.content[3].price", is(closeTo(32490000.0, 0.01))));
+
+        // 3. Lọc kết hợp phân trang: chỉ danh mục GIADUNG (4 SKU) => 1 trang duy nhất
+        mockMvc.perform(get("/api/v1/products/page")
+                        .param("page", "0")
+                        .param("size", "6")
+                        .param("category", "GIADUNG"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(4)))
+                .andExpect(jsonPath("$.totalPages", is(1)))
+                .andExpect(jsonPath("$.content", hasSize(4)))
+                .andExpect(jsonPath("$.first", is(true)))
+                .andExpect(jsonPath("$.last", is(true)));
+
+        // 4. Lọc nhiều thương hiệu cùng lúc (brand="Toshiba,Panasonic") + khoảng giá
+        //    Toshiba trong khoảng 2-10tr: MG-001 (7.49tr), TL-002 (8.49tr), TV-003 (9.49tr)
+        //    Panasonic trong khoảng 2-10tr: MG-003 (9.89tr), GD-002 (4.29tr) => tổng 5 SKU
+        mockMvc.perform(get("/api/v1/products/page")
+                        .param("page", "0")
+                        .param("size", "50")
+                        .param("brand", "Toshiba,Panasonic")
+                        .param("minPrice", "2000000")
+                        .param("maxPrice", "10000000"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements", is(5)))
+                .andExpect(jsonPath("$.content[*].brand.name", everyItem(anyOf(is("Toshiba"), is("Panasonic")))))
+                .andExpect(jsonPath("$.content[*].price", everyItem(allOf(
+                        greaterThanOrEqualTo(2000000.0),
+                        lessThanOrEqualTo(10000000.0)
+                ))));
+
+        // 5. Tham số rác không được làm văng lỗi 400: sortBy lạ fallback về "id", page âm ép về 0
+        mockMvc.perform(get("/api/v1/products/page")
+                        .param("page", "-5")
+                        .param("size", "999")
+                        .param("sortBy", "khong_ton_tai")
+                        .param("sortDir", "xyz"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page", is(0)))
+                .andExpect(jsonPath("$.size", is(50)))
+                .andExpect(jsonPath("$.content", hasSize(16)))
+                .andExpect(jsonPath("$.content[0].sku", is("DMX-MG-001")));
+    }
+
+    /**
      * Test 6: Kiểm chứng định tuyến tĩnh React SPA qua StaticPageRoutingFilter & Render Thymeleaf SSR tại /mvc/catalog.
      */
     @Test
