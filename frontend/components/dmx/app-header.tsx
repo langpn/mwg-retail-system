@@ -9,6 +9,7 @@ import {
   LogIn,
   LogOut,
   MapPin,
+  Package,
   Search,
   Shield,
   ShoppingBag,
@@ -317,11 +318,21 @@ function CartButton() {
 }
 
 function AccountDropdown() {
-  const { customer, logoutCustomer } = useStore()
+  const { customer, logoutCustomer, orders, reloadFromBackend } = useStore()
   const [open, setOpen] = useState(false)
+  const [showOrdersModal, setShowOrdersModal] = useState(false)
+  const [searchPhone, setSearchPhone] = useState('')
   const ref = useRef<HTMLDivElement>(null)
 
   const isAdmin = customer?.role === 'ADMIN'
+
+  // Lọc đơn hàng theo số điện thoại của người dùng
+  const targetPhone = customer?.phone || searchPhone.trim()
+  const userOrders = useMemo(() => {
+    if (!targetPhone) return []
+    const clean = targetPhone.replace(/\s/g, '')
+    return orders.filter((o) => o.phone && o.phone.replace(/\s/g, '') === clean)
+  }, [orders, targetPhone])
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -431,6 +442,19 @@ function AccountDropdown() {
                   </div>
 
                   <div className="py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowOrdersModal(true)
+                        setOpen(false)
+                        reloadFromBackend()
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+                    >
+                      <Package className="size-4 text-primary" />
+                      Đơn hàng của tôi
+                    </button>
+
                     <Link
                       href="/cart"
                       onClick={() => setOpen(false)}
@@ -473,6 +497,19 @@ function AccountDropdown() {
                   Đăng nhập / Đăng ký
                 </Link>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowOrdersModal(true)
+                    setOpen(false)
+                    reloadFromBackend()
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+                >
+                  <Package className="size-4 text-muted-foreground" />
+                  Tra cứu đơn hàng
+                </button>
+
                 <Link
                   href="/cart"
                   onClick={() => setOpen(false)}
@@ -484,6 +521,108 @@ function AccountDropdown() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Modal Đơn hàng của tôi (Gọn gàng, dễ hiểu, basic) */}
+      {showOrdersModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div className="flex items-center gap-2">
+                <Package className="size-5 text-primary" />
+                <h3 className="text-base font-extrabold text-foreground">
+                  {customer ? 'Đơn hàng của tôi' : 'Tra cứu đơn hàng'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOrdersModal(false)}
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {!customer && (
+                <div className="mb-4 flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-foreground">Nhập số điện thoại đã đặt hàng:</label>
+                  <input
+                    type="tel"
+                    value={searchPhone}
+                    onChange={(e) => setSearchPhone(e.target.value)}
+                    placeholder="VD: 0901 234 567"
+                    className="h-10 w-full rounded-xl border border-border bg-card px-3 text-xs font-medium focus:border-primary focus:outline-none"
+                  />
+                </div>
+              )}
+
+              {userOrders.length === 0 ? (
+                <div className="py-12 text-center">
+                  <Package className="mx-auto size-12 text-muted-foreground/40" />
+                  <p className="mt-2 text-xs font-bold text-foreground">Chưa có đơn hàng nào</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {targetPhone
+                      ? `Không tìm thấy đơn hàng nào với số điện thoại ${targetPhone}.`
+                      : 'Các đơn hàng bạn đặt sẽ xuất hiện tại đây.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {userOrders.map((o) => (
+                    <div
+                      key={o.id}
+                      className="rounded-xl border border-border bg-secondary/30 p-4 transition-all"
+                    >
+                      <div className="flex items-center justify-between border-b border-border pb-2.5 text-xs">
+                        <span className="font-mono font-bold text-primary">Đơn hàng #{o.id}</span>
+                        <span
+                          className={cn(
+                            'rounded-md px-2 py-0.5 text-[10px] font-extrabold',
+                            o.status === 'CONFIRMED'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800',
+                          )}
+                        >
+                          {o.status === 'CONFIRMED' ? '🟢 Đã duyệt giao hàng' : '🟠 Chờ siêu thị duyệt'}
+                        </span>
+                      </div>
+
+                      <div className="mt-2.5 flex flex-col gap-1 text-xs">
+                        <p className="font-bold text-foreground line-clamp-1">{o.productName}</p>
+                        <p className="text-[11px] text-muted-foreground">Người nhận: {o.customerName} · {o.phone}</p>
+                        <p className="text-[11px] text-muted-foreground line-clamp-1">Địa chỉ: {o.address}</p>
+                      </div>
+
+                      <div className="mt-3 flex items-baseline justify-between border-t border-border pt-2 text-xs">
+                        <span className="text-[11px] text-muted-foreground">
+                          {o.createdAt ? new Date(o.createdAt).toLocaleDateString('vi-VN') : 'Vừa đặt'}
+                        </span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-[11px] text-muted-foreground">Tổng tiền:</span>
+                          <span className="tabular font-extrabold text-price">{formatVND(o.total)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-border bg-secondary/20 p-3 text-right">
+              <button
+                type="button"
+                onClick={() => setShowOrdersModal(false)}
+                className="rounded-xl bg-secondary px-4 py-2 text-xs font-bold text-foreground hover:bg-secondary/80"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
