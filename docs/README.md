@@ -22,7 +22,8 @@ Toàn bộ tài liệu được thiết kế theo nguyên lý **Atomic Design & 
 | :---: | :--- | :--- |
 | `02.1` | [`01-system-architecture.md`](./02-architecture-and-specs/01-system-architecture.md) | Kiến trúc 4 tầng Spring Boot + Next.js 16 Static SPA cổng `:8088`, Component Scan, DI, quy tắc < 3s & Relative URL. |
 | `02.2` | [`02-database-erd-10-tables.md`](./02-architecture-and-specs/02-database-erd-10-tables.md) | Sơ đồ ERD, đặc tả vật lý 10 bảng MySQL, JPA Annotations, chống lặp `Circular Reference` & chiến lược `Cascade`. |
-| `02.3` | [`03-rest-api-specification.md`](./02-architecture-and-specs/03-rest-api-specification.md) | Danh mục đầy đủ **29 RESTful API routes** trên 6 Controller (`GET`, `POST`, `PUT`, `DELETE`) & mẫu JSON payload. |
+| `02.3` | [`03-rest-api-specification.md`](./02-architecture-and-specs/03-rest-api-specification.md) | Danh mục đầy đủ **29+ RESTful API routes** trên 6 Controller (`GET`, `POST`, `PUT`, `DELETE`) & mẫu JSON payload. |
+| `02.4` | [`mwg-retail-system.drawio`](./02-architecture-and-specs/mwg-retail-system.drawio) | **File nguồn Draw.io gốc (4 Tabs Vector):** `Use Case UML`, `Kiến trúc 4 Tầng`, `Conceptual ERD`, `Physical Schema 10 Bảng` — kéo thả trực tiếp lên `app.diagrams.net`. |
 
 ### Phân khu `03-execution-and-team/` — Kế Hoạch Thực Thi & Phối Hợp Nhóm
 | Mã file | Tài liệu | Phạm vi nguyên tử |
