@@ -1,14 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   AlertCircle,
   CheckCircle2,
   Loader2,
   LogIn,
-  MapPin,
   Phone,
   User,
   UserPlus,
@@ -18,7 +16,7 @@ import { AppHeader } from '@/components/dmx/app-header'
 import { SiteFooter } from '@/components/dmx/site-footer'
 import { api } from '@/lib/api'
 
-// Danh sách các số điện thoại / định danh được cấp quyền Quản trị viên (Admin)
+// Định danh được cấp quyền Quản trị viên (Admin)
 const ADMIN_IDENTIFIERS = ['0900000000', '0987654321', 'admin']
 
 export default function AuthPage() {
@@ -38,14 +36,13 @@ function AuthContent() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Login form state (tra cứu trực tiếp theo SĐT / Email trong MySQL)
+  // Login form state
   const [loginIdentifier, setLoginIdentifier] = useState('')
 
-  // Register form state (khớp 100% các cột bảng customers: full_name, phone, email, address)
+  // Register form state
   const [regName, setRegName] = useState('')
   const [regPhone, setRegPhone] = useState('')
   const [regEmail, setRegEmail] = useState('')
-  const [regAddress, setRegAddress] = useState('')
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -54,29 +51,28 @@ function AuthContent() {
 
     const identifier = loginIdentifier.trim()
     if (!identifier) {
-      setError('Vui lòng nhập số điện thoại thành viên.')
+      setError('Vui lòng nhập số điện thoại.')
       return
     }
 
-    // 1. Kiểm tra nếu là Số điện thoại của Quản trị viên
+    // 1. Quản trị viên: Tự động chuyển thẳng vào Bảng điều khiển Quản trị (/dashboard)
     const lower = identifier.toLowerCase()
     if (ADMIN_IDENTIFIERS.includes(lower) || ADMIN_IDENTIFIERS.includes(identifier)) {
       loginCustomer({
         id: 999,
-        fullName: 'Quản trị viên hệ thống',
+        fullName: 'Quản trị viên',
         phone: identifier,
         email: 'admin@dmx.mwg.vn',
-        address: 'Trụ sở Điện Máy Xanh',
         role: 'ADMIN',
       })
-      setNotification('Đăng nhập thành công với Quyền Quản trị viên! Đang mở trang chủ...')
+      setNotification('Đăng nhập Quản trị viên thành công! Đang mở trang Quản trị...')
       setTimeout(() => {
-        router.push('/')
-      }, 700)
+        router.push('/dashboard')
+      }, 500)
       return
     }
 
-    // 2. Tra cứu khách hàng thành viên trong MySQL
+    // 2. Khách hàng: Tra cứu thông tin trong hệ thống
     setSubmitting(true)
     try {
       let foundCustomer: any = null
@@ -106,14 +102,14 @@ function AuthContent() {
         setNotification(`Đăng nhập thành công! Chào mừng ${foundCustomer.fullName}.`)
         setTimeout(() => {
           router.push('/')
-        }, 800)
+        }, 600)
       } else {
         setError(
-          'Không tìm thấy thành viên với Số điện thoại này trong hệ thống. Quý khách vui lòng chọn tab "Đăng ký" bên trên nhé!',
+          'Số điện thoại chưa được đăng ký trong hệ thống. Vui lòng chuyển sang tab "Đăng ký".',
         )
       }
     } catch {
-      setError('Không thể kết nối đến máy chủ MySQL/Backend. Vui lòng kiểm tra lại tiến trình!')
+      setError('Không thể kết nối đến máy chủ. Vui lòng thử lại sau.')
     } finally {
       setSubmitting(false)
     }
@@ -127,10 +123,9 @@ function AuthContent() {
     const phoneClean = regPhone.trim()
     const nameClean = regName.trim()
     const emailClean = regEmail.trim()
-    const addressClean = regAddress.trim() || 'TP. Hồ Chí Minh'
 
     if (!phoneClean || !nameClean) {
-      setError('Họ tên và Số điện thoại là bắt buộc.')
+      setError('Vui lòng nhập đầy đủ Họ tên và Số điện thoại.')
       return
     }
 
@@ -140,18 +135,17 @@ function AuthContent() {
         fullName: nameClean,
         phone: phoneClean,
         email: emailClean || undefined,
-        address: addressClean,
       })
 
       if (res.status === 409) {
-        setError('Số điện thoại này đã được đăng ký thành viên trước đó. Vui lòng chuyển sang Đăng nhập!')
+        setError('Số điện thoại này đã được đăng ký. Vui lòng chuyển sang tab Đăng nhập.')
         setSubmitting(false)
         return
       }
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setError(data.message || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin!')
+        setError(data.message || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin.')
         setSubmitting(false)
         return
       }
@@ -162,16 +156,15 @@ function AuthContent() {
         fullName: created.fullName,
         phone: created.phone,
         email: created.email,
-        address: created.address,
         role: 'CUSTOMER',
       })
 
-      setNotification(`Đăng ký thành viên thành công và đã lưu vào CSDL MySQL! Chào mừng ${created.fullName}.`)
+      setNotification(`Đăng ký thành công! Chào mừng ${created.fullName}.`)
       setTimeout(() => {
         router.push('/')
-      }, 900)
+      }, 700)
     } catch {
-      setError('Lỗi kết nối máy chủ backend. Vui lòng kiểm tra cổng 8088!')
+      setError('Lỗi kết nối máy chủ. Vui lòng thử lại.')
     } finally {
       setSubmitting(false)
     }
@@ -186,9 +179,9 @@ function AuthContent() {
         <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
           {/* Header thương hiệu */}
           <div className="border-b border-border bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-5 text-center">
-            <h1 className="text-lg font-black text-foreground">Thành Viên Điện Máy Xanh</h1>
+            <h1 className="text-lg font-black text-foreground">Tài Khoản Điện Máy Xanh</h1>
             <p className="mt-1 text-xs text-muted-foreground">
-              Nhận diện thành viên qua Số điện thoại để tích điểm và bảo hành
+              Tra cứu đơn hàng, tích điểm thành viên và nhận ưu đãi
             </p>
           </div>
 
@@ -247,7 +240,7 @@ function AuthContent() {
               <form onSubmit={handleLogin} className="flex flex-col gap-4">
                 <div>
                   <label className="mb-1.5 block text-xs font-bold text-foreground">
-                    Số điện thoại thành viên (hoặc Email)
+                    Số điện thoại
                   </label>
                   <div className="relative">
                     <Phone className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -256,32 +249,19 @@ function AuthContent() {
                       required
                       value={loginIdentifier}
                       onChange={(e) => setLoginIdentifier(e.target.value)}
-                      placeholder="VD: 0901234567 hoặc số điện thoại của bạn"
+                      placeholder="Nhập số điện thoại"
                       className="h-11 w-full rounded-xl border border-border bg-card pr-4 pl-10 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
                     />
-                  </div>
-                  <div className="mt-2.5 rounded-lg bg-secondary/50 p-2.5 text-[11px] text-muted-foreground">
-                    💡 <span className="font-semibold text-foreground">Chuẩn chuỗi Điện Máy Xanh:</span> Khách hàng chỉ cần nhập Số điện thoại đã mua hàng để tích điểm và tra cứu bảo hành.
-                    <div className="mt-1 flex items-center gap-1.5 text-body">
-                      <span>Khách mẫu có sẵn trong database:</span>
-                      <button
-                        type="button"
-                        onClick={() => setLoginIdentifier('0901234567')}
-                        className="font-bold text-primary hover:underline"
-                      >
-                        0901234567
-                      </button>
-                    </div>
                   </div>
                 </div>
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="mt-1 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-extrabold text-white shadow-sm transition-all hover:bg-primary-deep disabled:opacity-50"
+                  className="mt-2 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-extrabold text-white shadow-sm transition-all hover:bg-primary-deep disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
-                  Đăng nhập bằng Số điện thoại
+                  Đăng nhập
                 </button>
               </form>
             ) : (
@@ -290,66 +270,54 @@ function AuthContent() {
                   <label className="mb-1 block text-xs font-bold text-foreground">
                     Họ và tên <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={regName}
-                    onChange={(e) => setRegName(e.target.value)}
-                    placeholder="VD: Bùi Dương Diễm"
-                    className="h-10 w-full rounded-xl border border-border bg-card px-3 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
-                  />
+                  <div className="relative">
+                    <User className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      type="text"
+                      required
+                      value={regName}
+                      onChange={(e) => setRegName(e.target.value)}
+                      placeholder="Họ và tên"
+                      className="h-10 w-full rounded-xl border border-border bg-card pr-4 pl-10 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="mb-1 block text-xs font-bold text-foreground">
                     Số điện thoại <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="tel"
-                    required
-                    value={regPhone}
-                    onChange={(e) => setRegPhone(e.target.value)}
-                    placeholder="VD: 0987 654 321"
-                    className="h-10 w-full rounded-xl border border-border bg-card px-3 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-foreground">Email (nhận hóa đơn điện tử)</label>
-                  <input
-                    type="email"
-                    value={regEmail}
-                    onChange={(e) => setRegEmail(e.target.value)}
-                    placeholder="diem.bui@gmail.com"
-                    className="h-10 w-full rounded-xl border border-border bg-card px-3 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-foreground">Địa chỉ nhận hàng</label>
                   <div className="relative">
-                    <MapPin className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Phone className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input
-                      type="text"
-                      value={regAddress}
-                      onChange={(e) => setRegAddress(e.target.value)}
-                      placeholder="Số nhà, Tên đường, Quận/Huyện"
-                      className="h-10 w-full rounded-xl border border-border bg-card pr-3 pl-9 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
+                      type="tel"
+                      required
+                      value={regPhone}
+                      onChange={(e) => setRegPhone(e.target.value)}
+                      placeholder="Số điện thoại"
+                      className="h-10 w-full rounded-xl border border-border bg-card pr-4 pl-10 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
                     />
                   </div>
                 </div>
 
-                <div className="rounded-lg bg-emerald-50/70 border border-emerald-200/60 p-2.5 text-[11px] text-emerald-800">
-                  <span className="font-bold">✓ CSDL MySQL:</span> Thông tin thành viên sẽ được lưu trực tiếp vào bảng <code className="font-mono font-bold">customers</code> qua REST API.
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-foreground">Email (tùy chọn)</label>
+                  <input
+                    type="email"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    className="h-10 w-full rounded-xl border border-border bg-card px-3 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
+                  />
                 </div>
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="mt-1 flex h-11 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-extrabold text-foreground shadow-sm transition-all hover:bg-amber-400 disabled:opacity-50"
+                  className="mt-2 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-extrabold text-white shadow-sm transition-all hover:bg-primary-deep disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
-                  Đăng ký lưu vào MySQL
+                  Đăng ký
                 </button>
               </form>
             )}
