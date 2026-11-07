@@ -46,6 +46,14 @@ public class CustomerOrder {
     @JoinColumn(name = "promotion_id")
     private Promotion promotion;
 
+    /**
+     * Chi nhánh siêu thị nơi đơn hàng được đặt.
+     * Bắt buộc phải lưu lại để khi huỷ đơn còn biết hoàn hàng về đúng kho chi nhánh nào.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "branch_id")
+    private StoreBranch storeBranch;
+
     @OneToMany(mappedBy = "customerOrder", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<OrderItem> orderItems = new ArrayList<>();
 
@@ -143,6 +151,14 @@ public class CustomerOrder {
 
     public void setPromotion(Promotion promotion) {
         this.promotion = promotion;
+    }
+
+    public StoreBranch getStoreBranch() {
+        return storeBranch;
+    }
+
+    public void setStoreBranch(StoreBranch storeBranch) {
+        this.storeBranch = storeBranch;
     }
 
     public List<OrderItem> getOrderItems() {

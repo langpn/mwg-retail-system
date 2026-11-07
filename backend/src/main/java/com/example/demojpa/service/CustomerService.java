@@ -56,13 +56,27 @@ public class CustomerService {
     }
 
     public Customer createCustomer(Customer customer) {
+        if (customer == null) {
+            throw new IllegalArgumentException("Dữ liệu khách hàng không được để trống");
+        }
+        if (customer.getFullName() == null || customer.getFullName().isBlank()) {
+            throw new IllegalArgumentException("Họ tên khách hàng không được để trống");
+        }
+        if (customer.getFullName().trim().length() < 2) {
+            throw new IllegalArgumentException("Họ tên khách hàng phải có ít nhất 2 ký tự");
+        }
         if (customer.getPhone() == null || customer.getPhone().isBlank()) {
             throw new IllegalArgumentException("Số điện thoại không được để trống");
         }
-        String phone = customer.getPhone().trim();
+        // Chuẩn hoá: bỏ khoảng trắng, dấu chấm, gạch nối người dùng hay gõ
+        String phone = customer.getPhone().replaceAll("[\\s.\\-]", "").trim();
+        if (!phone.matches("^0\\d{9}$")) {
+            throw new IllegalArgumentException("Số điện thoại không hợp lệ (phải gồm 10 chữ số và bắt đầu bằng 0)");
+        }
         if (customerRepo.findByPhone(phone).isPresent()) {
             throw new DuplicatePhoneException();
         }
+        customer.setFullName(customer.getFullName().trim());
         customer.setPhone(phone);
         return customerRepo.save(customer);
     }

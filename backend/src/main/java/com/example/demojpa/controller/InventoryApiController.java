@@ -72,12 +72,12 @@ public class InventoryApiController {
      * Cập nhật số lượng tồn kho thực tế của sản phẩm tại chi nhánh (HTTP PUT)
      */
     @PutMapping("/update")
-    public ResponseEntity<Inventory> updateStock(@RequestBody StockUpdateRequest req) {
+    public ResponseEntity<?> updateStock(@RequestBody StockUpdateRequest req) {
         try {
             Inventory updated = inventoryService.updateStock(req.getProductId(), req.getBranchId(), req.getQuantity());
             return ResponseEntity.ok(updated);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
         }
     }
 }

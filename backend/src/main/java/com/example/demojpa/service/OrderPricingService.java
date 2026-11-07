@@ -105,20 +105,27 @@ public class OrderPricingService {
             if (promoOpt.isPresent()) {
                 Promotion promo = promoOpt.get();
                 // discount = min(round(subtotal * percent/100), maxDiscountAmount nếu có)
-                double rawDiscount = Math.round(subtotal * promo.getDiscountPercent() / 100.0);
-                if (promo.getMaxDiscountAmount() != null) {
-                    rawDiscount = Math.min(rawDiscount, promo.getMaxDiscountAmount());
+                double percent = promo.getDiscountPercent() == null ? 0 : promo.getDiscountPercent();
+                // Chặn dữ liệu khuyến mãi bất thường (âm hoặc > 100%) để tổng tiền không bao giờ âm.
+                if (percent > 0 && percent <= 100) {
+                    double rawDiscount = Math.round(subtotal * percent / 100.0);
+                    if (promo.getMaxDiscountAmount() != null) {
+                        rawDiscount = Math.min(rawDiscount, promo.getMaxDiscountAmount());
+                    }
+                    // Không cho giảm quá giá trị đơn hàng
+                    discount = Math.min(rawDiscount, subtotal);
+                    promoApplied = true;
+                    promoLabel = promo.getDescription();
+                    promoCodeOut = normalizedCode;
+                } else {
+                    promoMessage = "Mã khuyến mãi không hợp lệ hoặc đã hết hạn";
                 }
-                discount = rawDiscount;
-                promoApplied = true;
-                promoLabel = promo.getDescription();
-                promoCodeOut = normalizedCode;
             } else {
                 promoMessage = "Mã khuyến mãi không hợp lệ hoặc đã hết hạn";
             }
         }
 
-        double total = subtotal - discount;
+        double total = Math.max(0.0, subtotal - discount);
 
         OrderQuote quote = new OrderQuote();
         quote.setItems(quoteItems);

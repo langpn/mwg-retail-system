@@ -51,6 +51,15 @@ public class InventoryService {
     }
 
     public Inventory updateStock(Long productId, Long branchId, Integer quantity) {
+        if (productId == null || branchId == null) {
+            throw new IllegalArgumentException("Sản phẩm và chi nhánh không được để trống");
+        }
+        if (quantity == null) {
+            throw new IllegalArgumentException("Số lượng tồn kho không được để trống");
+        }
+        if (quantity < 0) {
+            throw new IllegalArgumentException("Số lượng tồn kho không được là số âm");
+        }
         Optional<Inventory> existing = inventoryRepo.findByProduct_IdAndStoreBranch_Id(productId, branchId);
         if (existing.isPresent()) {
             Inventory inv = existing.get();
