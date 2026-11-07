@@ -65,7 +65,7 @@ export function SiteFooter() {
       <div className="border-t border-border bg-secondary/20">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-2 px-4 py-3 text-[11px] text-muted-foreground md:px-8">
           <p>© 2026 Hệ thống Bán lẻ Điện Máy Xanh — Đồ án môn học Công cụ Web (IUH)</p>
-          <p className="font-medium">Nhóm sinh viên thực hiện: Lang · Diễm · Toàn — Lớp DHCNTT21BVL</p>
+          <p className="font-medium">Nhóm sinh viên thực hiện: Diễm (Nhóm trưởng) · Lang · Toàn — Lớp DHCNTT21BVL</p>
         </div>
       </div>
     </footer>

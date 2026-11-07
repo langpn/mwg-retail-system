@@ -29,9 +29,10 @@ public class Category {
     /**
      * @OneToMany: 1 danh mục có nhiều sản phẩm.
      * mappedBy = "category": Thuộc tính 'category' bên class Product làm chủ quan hệ.
+     * cascade = {CascadeType.PERSIST, CascadeType.MERGE}: Không dùng CascadeType.REMOVE để tránh xóa nhầm dây chuyền toàn bộ sản phẩm khi thao tác danh mục.
      * @JsonIgnore: Chống lỗi vòng lặp đệ quy vô hạn khi Spring Boot serialize sang JSON.
      */
-    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "category", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Product> products = new ArrayList<>();
 

@@ -1,5 +1,6 @@
 package com.example.demojpa.service;
 
+import com.example.demojpa.dto.StockEntry;
 import com.example.demojpa.entity.Inventory;
 import com.example.demojpa.entity.Product;
 import com.example.demojpa.entity.StoreBranch;
@@ -33,7 +34,7 @@ public class InventoryService {
     }
 
     public List<Inventory> getInventoryByBranch(Long branchId) {
-        return inventoryRepo.findByStoreBranch_Id(branchId);
+        return inventoryRepo.findByBranchWithDetails(branchId);
     }
 
     public List<Inventory> getInventoryByProduct(Long productId) {
@@ -42,6 +43,11 @@ public class InventoryService {
 
     public Optional<Inventory> checkInventory(String sku, String district) {
         return inventoryRepo.findByProduct_SkuAndStoreBranch_District(sku, district);
+    }
+
+    /** Trả về ma trận tồn kho phẳng (productId × branchId) bằng 1 câu JPQL duy nhất. */
+    public List<StockEntry> getStockMatrix() {
+        return inventoryRepo.findStockMatrix();
     }
 
     public Inventory updateStock(Long productId, Long branchId, Integer quantity) {

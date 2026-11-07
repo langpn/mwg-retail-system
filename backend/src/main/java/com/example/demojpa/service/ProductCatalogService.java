@@ -6,11 +6,13 @@ import com.example.demojpa.entity.Product;
 import com.example.demojpa.repository.BrandRepository;
 import com.example.demojpa.repository.CategoryRepository;
 import com.example.demojpa.repository.ProductRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Service: ProductCatalogService (Quản lý nghiệp vụ Sản phẩm, Danh mục, Thương hiệu)
@@ -50,35 +52,59 @@ public class ProductCatalogService {
     }
 
     public List<Product> searchProducts(String categoryCode, String brandName, Double maxPrice, String keyword) {
-        List<Product> list = productRepo.findAll();
+        String cleanCategoryCode = (categoryCode != null && !categoryCode.trim().isEmpty()) ? categoryCode.trim() : null;
+        String cleanBrandName = (brandName != null && !brandName.trim().isEmpty()) ? brandName.trim() : null;
+        Double cleanMaxPrice = (maxPrice != null && maxPrice > 0) ? maxPrice : null;
+        String cleanKeyword = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
 
-        if (categoryCode != null && !categoryCode.trim().isEmpty()) {
-            list = list.stream()
-                    .filter(p -> p.getCategory() != null && categoryCode.equalsIgnoreCase(p.getCategory().getCode()))
-                    .collect(Collectors.toList());
-        }
+        return productRepo.searchByFilters(cleanCategoryCode, cleanBrandName, cleanMaxPrice, cleanKeyword);
+    }
 
-        if (brandName != null && !brandName.trim().isEmpty()) {
-            list = list.stream()
-                    .filter(p -> p.getBrand() != null && brandName.equalsIgnoreCase(p.getBrand().getName()))
-                    .collect(Collectors.toList());
-        }
+    /**
+     * PHÂN TRANG CẤP CƠ SỞ DỮ LIỆU (Server-Side Pagination).
+     * Toàn bộ việc lọc + sắp xếp + LIMIT/OFFSET diễn ra dưới MySQL/H2,
+     * Client chỉ nhận đúng pageSize bản ghi của trang hiện tại => tải trang cực nhanh.
+     *
+     * @param categoryCode mã danh mục (nullable)
+     * @param brand       1 hãng ("Toshiba") hoặc nhiều hãng ("Toshiba,Samsung"), nullable
+     * @param minPrice    giá thấp nhất (nullable)
+     * @param maxPrice    giá cao nhất (nullable)
+     * @param keyword     từ khóa tên/SKU/mô tả (nullable)
+     * @param pageable    thông tin trang + sắp xếp do Controller dựng
+     */
+    public Page<Product> searchProductsPage(String categoryCode, String brand,
+                                            Double minPrice, Double maxPrice,
+                                            String keyword, Pageable pageable) {
+        String cleanCategoryCode = (categoryCode != null && !categoryCode.trim().isEmpty())
+                ? categoryCode.trim() : null;
 
-        if (maxPrice != null && maxPrice > 0) {
-            list = list.stream()
-                    .filter(p -> p.getPrice() != null && p.getPrice() <= maxPrice)
-                    .collect(Collectors.toList());
-        }
+        // Tách chuỗi "Toshiba, Samsung" -> ["toshiba", "samsung"] (trim + lowercase, bỏ phần tử rỗng)
+        List<String> brandNames = (brand != null && !brand.trim().isEmpty())
+                ? Arrays.stream(brand.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(s -> s.toLowerCase())
+                        .distinct()
+                        .toList()
+                : List.of();
 
-        if (keyword != null && !keyword.trim().isEmpty()) {
-            String kw = keyword.toLowerCase();
-            list = list.stream()
-                    .filter(p -> (p.getName() != null && p.getName().toLowerCase().contains(kw))
-                            || (p.getDescription() != null && p.getDescription().toLowerCase().contains(kw)))
-                    .collect(Collectors.toList());
-        }
+        // Cờ hasBrands: khi rỗng phải truyền false + List.of("__none__") để tránh lỗi "IN (NULL)"
+        boolean hasBrands = !brandNames.isEmpty();
+        List<String> safeBrandNames = hasBrands ? brandNames : List.of("__none__");
 
-        return list;
+        Double cleanMinPrice = (minPrice != null && minPrice >= 0) ? minPrice : null;
+        Double cleanMaxPrice = (maxPrice != null && maxPrice > 0) ? maxPrice : null;
+        String cleanKeyword = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
+
+        return productRepo.searchByFiltersPage(
+                cleanCategoryCode,
+                safeBrandNames,
+                hasBrands,
+                cleanMinPrice,
+                cleanMaxPrice,
+                cleanKeyword,
+                pageable
+        );
     }
 
     public Product createProduct(Product product) {

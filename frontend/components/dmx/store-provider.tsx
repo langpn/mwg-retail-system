@@ -2,9 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  INITIAL_ORDERS,
-  INITIAL_PRODUCTS,
-  PROMO_CODES,
   matchesBudget,
   type BranchId,
   type BrandId,
@@ -13,7 +10,15 @@ import {
   type Order,
   type Product,
 } from '@/lib/dmx-data'
-import { api } from '@/lib/api'
+import { api, type ProductPageParams } from '@/lib/api'
+import {
+  mapBackendProduct,
+  applyStockMatrix,
+  catalogAdapter,
+  keyToNumericId,
+  CATEGORY_ID_TO_CODE,
+} from '@/lib/catalog'
+import { submitOrder, type OrderItemInput } from '@/lib/order-service'
 
 export type ViewTab = 'catalog' | 'inventory'
 export type SortOption = 'default' | 'price-asc' | 'price-desc' | 'discount'
@@ -30,15 +35,6 @@ export interface CustomerProfile {
   email?: string
   address?: string
   role?: 'CUSTOMER' | 'ADMIN'
-}
-
-export interface ApiLogEntry {
-  id: number
-  method: 'GET' | 'PUT' | 'POST' | 'PATCH'
-  path: string
-  status: number
-  detail: string
-  at: string
 }
 
 interface NewOrderInput {
@@ -63,7 +59,6 @@ interface StoreValue {
   products: Product[]
   filteredProducts: Product[]
   orders: Order[]
-  apiLog: ApiLogEntry[]
   branchId: BranchId
   setBranchId: (id: BranchId) => void
   category: CategoryId
@@ -79,6 +74,14 @@ interface StoreValue {
   setTab: (tab: ViewTab) => void
   sort: SortOption
   setSort: (s: SortOption) => void
+  page: number
+  pageSize: number
+  pagedProducts: Product[]
+  totalProducts: number
+  totalPages: number
+  pageLoading: boolean
+  setPage: (p: number) => void
+  setPageSize: (s: number) => void
   orderSku: string
   startOrder: (sku: string) => void
   setOrderSku: (sku: string) => void
@@ -87,7 +90,6 @@ interface StoreValue {
   confirmOrder: (id: number) => void
   backendConnected: boolean | null
   reloadFromBackend: () => void
-  // Cart
   cart: CartItem[]
   addToCart: (product: Product, quantity?: number) => void
   updateCartQty: (sku: string, quantity: number) => void
@@ -96,7 +98,6 @@ interface StoreValue {
   cartCount: number
   cartSubtotal: number
   placeCartOrder: (input: CartCheckoutInput) => Promise<Order | { error: string }>
-  // Customer Authentication
   customer: CustomerProfile | null
   loginCustomer: (profile: CustomerProfile) => void
   logoutCustomer: () => void
@@ -104,74 +105,17 @@ interface StoreValue {
 
 const StoreContext = createContext<StoreValue | null>(null)
 
-let logCounter = 1
-
-/* ── Mapping helpers ── */
-const BRANCH_ID_MAP: Record<BranchId, number> = { q9: 1, td: 2 }
-const BRANCH_KEY_MAP: Record<number, BranchId> = { 1: 'q9', 2: 'td' }
-
-const CATEGORY_CODE_MAP: Record<string, Exclude<CategoryId, 'all'>> = {
-  MAYGIAT: 'washer',
-  TULANH: 'fridge',
-  TIVI: 'tv',
-}
-
-function mapBackendProduct(bp: any, inventories: any[]): Product {
-  const categoryCode = bp.category?.code ?? ''
-  const brandName = bp.brand?.name ?? 'Toshiba'
-
-  const stock: Record<BranchId, number> = { q9: 0, td: 0 }
-  for (const inv of inventories) {
-    if (inv.product?.id === bp.id) {
-      const key = BRANCH_KEY_MAP[inv.storeBranch?.id]
-      if (key) stock[key] = inv.quantity ?? 0
-    }
-  }
-
-  // Try to find matching hardcoded product for listPrice, specs, image
-  const hardcoded = INITIAL_PRODUCTS.find((p) => p.sku === bp.sku)
-
-  return {
-    id: bp.id,
-    sku: bp.sku,
-    name: bp.name,
-    category: CATEGORY_CODE_MAP[categoryCode] ?? 'small',
-    brand: brandName as BrandId,
-    price: bp.price,
-    listPrice:
-      hardcoded?.listPrice && hardcoded.listPrice > bp.price && hardcoded.listPrice <= bp.price * 1.4
-        ? hardcoded.listPrice
-        : Math.round(bp.price * 1.15),
-    specs: hardcoded?.specs ?? [bp.description ?? ''],
-    image: hardcoded?.image ?? '/products/washer-front.png',
-    stock,
-  }
-}
-
-function mapBackendOrder(bo: any): Order {
-  const item = bo.orderItems?.[0]
-  return {
-    id: bo.id,
-    sku: item?.product?.sku ?? '',
-    productName: item?.product?.name ?? '',
-    quantity: item?.quantity ?? 1,
-    customerName: bo.customerName,
-    phone: bo.phone,
-    address: bo.shippingAddress,
-    branchId: 'q9',
-    promoCode: bo.promotion?.promoCode ?? null,
-    subtotal: item ? item.unitPrice * item.quantity : bo.totalAmount,
-    discount: 0,
-    total: bo.totalAmount,
-    status: bo.status as Order['status'],
-    createdAt: bo.orderDate,
-  }
+const BUDGET_PRICE_RANGE: Record<BudgetId, { minPrice?: number; maxPrice?: number }> = {
+  any: {},
+  lt8: { maxPrice: 8_000_000 },
+  lt10: { maxPrice: 10_000_000 },
+  lt15: { maxPrice: 15_000_000 },
+  premium: { minPrice: 15_000_000 },
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS)
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS)
-  const [apiLog, setApiLog] = useState<ApiLogEntry[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [branchId, setBranchId] = useState<BranchId>('q9')
   const [category, setCategory] = useState<CategoryId>('all')
   const [brands, setBrands] = useState<BrandId[]>([])
@@ -179,108 +123,104 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<ViewTab>('catalog')
   const [sort, setSort] = useState<SortOption>('default')
-  const [orderSku, setOrderSku] = useState(INITIAL_PRODUCTS[0].sku)
+  const [orderSku, setOrderSku] = useState('')
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null)
 
-  // Customer state with persistence
+  const [pageSize, setPageSizeState] = useState(8)
+  const [serverPage, setServerPage] = useState<{
+    key: string
+    products: Product[]
+    totalElements: number
+    totalPages: number
+  } | null>(null)
+  const [pageLoading, setPageLoading] = useState(false)
+
+  /* ── Customer persistence ── */
   const [customer, setCustomer] = useState<CustomerProfile | null>(null)
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem('mwg_customer_v1')
-      if (saved) {
-        setCustomer(JSON.parse(saved))
-      }
+      if (saved) setCustomer(JSON.parse(saved))
     } catch {}
   }, [])
 
   const loginCustomer = useCallback((profile: CustomerProfile) => {
     setCustomer(profile)
-    try {
-      localStorage.setItem('mwg_customer_v1', JSON.stringify(profile))
-    } catch {}
+    try { localStorage.setItem('mwg_customer_v1', JSON.stringify(profile)) } catch {}
   }, [])
 
   const logoutCustomer = useCallback(() => {
     setCustomer(null)
-    try {
-      localStorage.removeItem('mwg_customer_v1')
-    } catch {}
+    try { localStorage.removeItem('mwg_customer_v1') } catch {}
   }, [])
 
-  // Cart state with persistence
-  const [cart, setCart] = useState<CartItem[]>([
-    { product: INITIAL_PRODUCTS[0], quantity: 1 },
-  ])
+  /* ── Cart persistence ── */
+  const [cart, setCart] = useState<CartItem[]>([])
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem('mwg_cart_v1')
       if (saved) {
         const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setCart(parsed)
-        }
+        if (Array.isArray(parsed)) setCart(parsed)
       }
     } catch {}
   }, [])
 
-  const saveCart = useCallback((nextCart: CartItem[]) => {
-    setCart(nextCart)
-    try {
-      localStorage.setItem('mwg_cart_v1', JSON.stringify(nextCart))
-    } catch {}
+  const persistCart = useCallback((next: CartItem[]) => {
+    try { localStorage.setItem('mwg_cart_v1', JSON.stringify(next)) } catch {}
   }, [])
+
+  useEffect(() => {
+    if (!products.length) return
+    setCart((previous) => {
+      const next = previous.map((item) => {
+        const product = products.find((entry) => entry.sku === item.product.sku)
+        return product && product !== item.product ? { ...item, product } : item
+      })
+      if (next.every((item, index) => item === previous[index])) return previous
+      persistCart(next)
+      return next
+    })
+  }, [products, persistCart])
 
   const addToCart = useCallback((product: Product, quantity = 1) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.product.sku === product.sku)
-      let updated: CartItem[]
-      if (existing) {
-        updated = prev.map((item) =>
-          item.product.sku === product.sku
-            ? { ...item, quantity: Math.min(5, item.quantity + quantity) }
-            : item,
-        )
-      } else {
-        updated = [...prev, { product, quantity }]
-      }
-      try {
-        localStorage.setItem('mwg_cart_v1', JSON.stringify(updated))
-      } catch {}
+      const updated = existing
+        ? prev.map((item) =>
+            item.product.sku === product.sku
+              ? { ...item, quantity: Math.min(5, item.quantity + quantity) }
+              : item,
+          )
+        : [...prev, { product, quantity }]
+      persistCart(updated)
       return updated
     })
-  }, [])
+  }, [persistCart])
 
   const updateCartQty = useCallback((sku: string, quantity: number) => {
     const qty = Math.max(1, Math.min(5, Math.floor(quantity)))
     setCart((prev) => {
-      const updated = prev.map((item) =>
-        item.product.sku === sku ? { ...item, quantity: qty } : item,
-      )
-      try {
-        localStorage.setItem('mwg_cart_v1', JSON.stringify(updated))
-      } catch {}
+      const updated = prev.map((item) => item.product.sku === sku ? { ...item, quantity: qty } : item)
+      persistCart(updated)
       return updated
     })
-  }, [])
+  }, [persistCart])
 
   const removeFromCart = useCallback((sku: string) => {
     setCart((prev) => {
       const updated = prev.filter((item) => item.product.sku !== sku)
-      try {
-        localStorage.setItem('mwg_cart_v1', JSON.stringify(updated))
-      } catch {}
+      persistCart(updated)
       return updated
     })
-  }, [])
+  }, [persistCart])
 
   const clearCart = useCallback(() => {
     setCart([])
-    try {
-      localStorage.removeItem('mwg_cart_v1')
-    } catch {}
-  }, [])
+    persistCart([])
+  }, [persistCart])
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart])
   const cartSubtotal = useMemo(
@@ -309,57 +249,126 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (q && !`${p.name} ${p.sku} ${p.brand} ${p.specs.join(' ')}`.toLowerCase().includes(q)) return false
       return true
     })
-
     switch (sort) {
-      case 'price-asc':
-        return [...list].sort((a, b) => a.price - b.price)
-      case 'price-desc':
-        return [...list].sort((a, b) => b.price - a.price)
+      case 'price-asc': return [...list].sort((a, b) => a.price - b.price)
+      case 'price-desc': return [...list].sort((a, b) => b.price - a.price)
       case 'discount':
         return [...list].sort((a, b) => {
-          const discA = a.listPrice > 0 ? (a.listPrice - a.price) / a.listPrice : 0
-          const discB = b.listPrice > 0 ? (b.listPrice - b.price) / b.listPrice : 0
-          return discB - discA
+          const dA = a.listPrice > 0 ? (a.listPrice - a.price) / a.listPrice : 0
+          const dB = b.listPrice > 0 ? (b.listPrice - b.price) / b.listPrice : 0
+          return dB - dA
         })
-      default:
-        return list
+      default: return list
     }
   }, [products, category, brands, budget, query, sort])
 
-  const pushLog = useCallback((entry: Omit<ApiLogEntry, 'id' | 'at'>) => {
-    setApiLog((prev) => [{ ...entry, id: logCounter++, at: new Date().toISOString() }, ...prev].slice(0, 6))
+  /* ── Pagination ── */
+  const filtersKey = `${category}|${brands.join(',')}|${budget}|${query.trim()}|${sort}|${pageSize}`
+  const [pager, setPager] = useState<{ key: string; page: number }>({ key: filtersKey, page: 0 })
+  const page = pager.key === filtersKey ? pager.page : 0
+
+  useEffect(() => {
+    setPager((prev) => (prev.key === filtersKey && prev.page === 0 ? prev : { key: filtersKey, page: 0 }))
+  }, [filtersKey])
+
+  const setPage = useCallback(
+    (p: number) => { setPager({ key: filtersKey, page: Math.max(0, Math.floor(p)) }) },
+    [filtersKey],
+  )
+
+  const setPageSize = useCallback((s: number) => {
+    setPageSizeState(Math.max(1, Math.floor(s)))
   }, [])
 
-  /* ── Load data from backend ── */
-  const reloadFromBackend = useCallback(async () => {
-    try {
-      const [backendProducts, inv1, inv2, backendOrders] = await Promise.all([
-        api.getProducts(),
-        api.getBranchInventory(1),
-        api.getBranchInventory(2),
-        api.getOrders(),
-      ])
-
-      const allInventories = [...inv1, ...inv2]
-      const mapped = (backendProducts as any[]).map((bp) => mapBackendProduct(bp, allInventories))
-
-      pushLog({
-        method: 'GET',
-        path: '/api/v1/products',
-        status: 200,
-        detail: `Loaded ${mapped.length} products from backend`,
-      })
-
-      if (mapped.length > 0) setProducts(mapped)
-
-      const mappedOrders = (backendOrders as any[]).map(mapBackendOrder)
-      if (mappedOrders.length > 0) setOrders(mappedOrders)
-
-      setBackendConnected(true)
-    } catch {
-      setBackendConnected(false)
+  const serverSort = useMemo(() => {
+    switch (sort) {
+      case 'price-asc': return { sortBy: 'price', sortDir: 'asc' }
+      case 'price-desc': return { sortBy: 'price', sortDir: 'desc' }
+      default: return { sortBy: 'id', sortDir: 'asc' }
     }
-  }, [pushLog])
+  }, [sort])
+
+  const useServerPaging = backendConnected === true && sort !== 'discount'
+
+  const stockBySku = useMemo(() => {
+    const map = new Map<string, Record<BranchId, number>>()
+    for (const p of products) map.set(p.sku, p.stock)
+    return map
+  }, [products])
+
+  const stockBySkuRef = useRef(stockBySku)
+  useEffect(() => { stockBySkuRef.current = stockBySku }, [stockBySku])
+
+  const pageKey = `${filtersKey}|${page}`
+
+  /* ── Server-side page fetch ── */
+  useEffect(() => {
+    if (!useServerPaging) {
+      setServerPage(null)
+      setPageLoading(false)
+      return
+    }
+    let cancelled = false
+    const params: ProductPageParams = {
+      page,
+      size: pageSize,
+      sortBy: serverSort.sortBy,
+      sortDir: serverSort.sortDir,
+      ...(category !== 'all' ? { category: CATEGORY_ID_TO_CODE[category] } : {}),
+      ...(brands.length > 0 ? { brand: brands.join(',') } : {}),
+      ...BUDGET_PRICE_RANGE[budget],
+      ...(query.trim() ? { keyword: query.trim() } : {}),
+    }
+    setPageLoading(true)
+    api.products
+      .page(params)
+      .then((res) => {
+        if (cancelled) return
+        const content = Array.isArray(res?.content) ? res.content : []
+        const mapped = content.map((bp) => mapBackendProduct(bp, [], stockBySkuRef.current.get(bp.sku)))
+        const total = res.totalElements ?? mapped.length
+        const pages = Math.max(1, res.totalPages ?? 1)
+        if (res.totalPages > 0 && page >= res.totalPages) {
+          setPager({ key: filtersKey, page: Math.max(0, res.totalPages - 1) })
+          return
+        }
+        setServerPage({ key: pageKey, products: mapped, totalElements: total, totalPages: pages })
+      })
+      .catch(() => { if (!cancelled) setServerPage(null) })
+      .finally(() => { if (!cancelled) setPageLoading(false) })
+    return () => { cancelled = true }
+  }, [useServerPaging, page, pageSize, category, brands, budget, query, serverSort, pageKey, filtersKey])
+
+  const liveServerPage = useServerPaging && serverPage?.key === pageKey ? serverPage : null
+
+  const pagedProducts = useMemo(() => {
+    if (liveServerPage) {
+      return liveServerPage.products.map((p) => {
+        const stock = stockBySku.get(p.sku)
+        return stock ? { ...p, stock } : p
+      })
+    }
+    return filteredProducts.slice(page * pageSize, (page + 1) * pageSize)
+  }, [liveServerPage, filteredProducts, page, pageSize, stockBySku])
+
+  const totalProducts = liveServerPage ? liveServerPage.totalElements : filteredProducts.length
+  const totalPages = liveServerPage
+    ? Math.max(1, liveServerPage.totalPages)
+    : Math.max(1, Math.ceil(filteredProducts.length / pageSize))
+
+  const reloadFromBackend = useCallback(async () => {
+    const connected = await api.ping()
+    setBackendConnected(null)
+    try {
+      const catalog = await catalogAdapter(connected).load()
+      setProducts(catalog.products)
+      setOrders(catalog.orders)
+    } catch {
+      setProducts([])
+      setOrders([])
+    }
+    setBackendConnected(connected)
+  }, [])
 
   const didLoad = useRef(false)
   useEffect(() => {
@@ -368,285 +377,139 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     reloadFromBackend()
   }, [reloadFromBackend])
 
-  /* ── Update stock (real API) ── */
+  /* ── Update stock ── */
   const updateStock = useCallback(
     async (sku: string, target: BranchId, quantity: number) => {
       const safe = Math.max(0, Math.min(999, Math.floor(quantity)))
       const product = products.find((p) => p.sku === sku)
 
+      if (backendConnected === null) return
+      if (backendConnected) {
+        const numericBranch = keyToNumericId(target)
+        if (product?.id === undefined || numericBranch === undefined) return
+        try {
+          await api.inventory.update({ productId: product.id, branchId: numericBranch, quantity: safe })
+        } catch {
+          return
+        }
+      }
       setProducts((prev) =>
         prev.map((p) => (p.sku === sku ? { ...p, stock: { ...p.stock, [target]: safe } } : p)),
       )
-
-      if (backendConnected && product?.id) {
-        try {
-          await api.updateStock(product.id, BRANCH_ID_MAP[target], safe)
-          pushLog({
-            method: 'PUT',
-            path: `/api/v1/inventory/update`,
-            status: 200,
-            detail: `{ "productId": ${product.id}, "branchId": ${BRANCH_ID_MAP[target]}, "quantity": ${safe} }`,
-          })
-        } catch {
-          pushLog({
-            method: 'PUT',
-            path: `/api/v1/inventory/update`,
-            status: 500,
-            detail: 'Backend error — updated locally only',
-          })
-        }
-      } else {
-        pushLog({
-          method: 'PUT',
-          path: `/api/v1/inventory/${sku}?branch=${target.toUpperCase()}`,
-          status: 200,
-          detail: `{ "quantity": ${safe} } (local)`,
-        })
-      }
     },
-    [products, backendConnected, pushLog],
+    [products, backendConnected],
   )
 
   const startOrder = useCallback((sku: string) => {
     setOrderSku(sku)
     const product = products.find((p) => p.sku === sku)
-    if (product) {
-      addToCart(product, 1)
-    }
+    if (product) addToCart(product, 1)
   }, [products, addToCart])
 
-  /* ── Place single order ── */
-  const placeOrder = useCallback(
-    async (input: NewOrderInput): Promise<Order | { error: string }> => {
-      const product = products.find((p) => p.sku === input.sku)
-      if (!product) return { error: 'Sản phẩm không tồn tại.' }
-      const qty = Math.floor(input.quantity)
-      if (!Number.isFinite(qty) || qty < 1 || qty > 5) return { error: 'Số lượng phải từ 1 đến 5.' }
-      if (product.stock[input.branchId] < qty)
-        return { error: `Chi nhánh chỉ còn ${product.stock[input.branchId]} sản phẩm.` }
+  /* ── Refresh stock from stock-matrix after a successful order ── */
+  const refreshStockMatrix = useCallback(async () => {
+    try {
+      const matrix = await api.inventory.stockMatrix()
+      setProducts((prev) => applyStockMatrix(prev, matrix))
+    } catch {}
+  }, [])
 
-      const subtotal = product.price * qty
-      const code = input.promoCode.trim().toUpperCase()
-      const promo = PROMO_CODES[code]
-      const discount = promo ? promo.compute(subtotal) : 0
+  const submit = useCallback(async (items: OrderItemInput[], input: CartCheckoutInput) => {
+    const result = await submitOrder(backendConnected, items, products, input, Math.max(...orders.map((o) => o.id), 10250) + 1)
+    if ('error' in result) return result
+    setOrders((prev) => [...prev, result])
+    if (backendConnected === false) {
+      setProducts((prev) => prev.map((product) => {
+        const item = items.find((entry) => entry.product.sku === product.sku)
+        return item ? { ...product, stock: { ...product.stock, [input.branchId]: product.stock[input.branchId] - item.quantity } } : product
+      }))
+    } else {
+      await refreshStockMatrix()
+    }
+    return result
+  }, [backendConnected, products, orders, refreshStockMatrix])
 
-      if (backendConnected && product.id) {
-        try {
-          const res = await api.createOrder({
-            customerName: input.customerName.trim(),
-            phone: input.phone.trim(),
-            shippingAddress: input.address.trim() || 'Nhận tại cửa hàng',
-            promoCode: promo ? code : '',
-            branchId: BRANCH_ID_MAP[input.branchId],
-            items: [{ productId: product.id, quantity: qty }],
-          })
+  const placeOrder = useCallback(async (input: NewOrderInput) => {
+    const product = products.find((item) => item.sku === input.sku)
+    if (!product) return { error: 'Sản phẩm không tồn tại.' }
+    return submit([{ product, quantity: input.quantity }], input)
+  }, [products, submit])
 
-          if (!res.ok) {
-            const text = await res.text()
-            pushLog({
-              method: 'POST',
-              path: '/api/v1/orders',
-              status: res.status,
-              detail: text || 'Bad Request',
-            })
-            return { error: 'Backend từ chối đơn hàng.' }
-          }
-
-          const created = await res.json()
-          const order: Order = {
-            id: created.id,
-            sku: product.sku,
-            productName: product.name,
-            quantity: qty,
-            customerName: input.customerName.trim(),
-            phone: input.phone.trim(),
-            address: input.address.trim() || 'Nhận tại cửa hàng',
-            branchId: input.branchId,
-            promoCode: promo ? code : null,
-            subtotal,
-            discount,
-            total: created.totalAmount ?? subtotal - discount,
-            status: created.status ?? 'PENDING',
-            createdAt: created.orderDate ?? new Date().toISOString(),
-          }
-
-          setOrders((prev) => [...prev, order])
-          setProducts((prev) =>
-            prev.map((p) =>
-              p.sku === product.sku
-                ? { ...p, stock: { ...p.stock, [input.branchId]: p.stock[input.branchId] - qty } }
-                : p,
-            ),
-          )
-          return order
-        } catch {
-          // Fallback local
-        }
-      }
-
-      // Local order
-      const order: Order = {
-        id: Math.max(...orders.map((o) => o.id), 10250) + 1,
-        sku: product.sku,
-        productName: product.name,
-        quantity: qty,
-        customerName: input.customerName.trim(),
-        phone: input.phone.trim(),
-        address: input.address.trim() || 'Nhận tại cửa hàng',
-        branchId: input.branchId,
-        promoCode: promo ? code : null,
-        subtotal,
-        discount,
-        total: subtotal - discount,
-        status: 'PENDING',
-        createdAt: new Date().toISOString(),
-      }
-      setOrders((prev) => [...prev, order])
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.sku === product.sku
-            ? { ...p, stock: { ...p.stock, [input.branchId]: p.stock[input.branchId] - qty } }
-            : p,
-        ),
-      )
-      return order
-    },
-    [products, orders, backendConnected, pushLog],
-  )
-
-  /* ── Place cart checkout order ── */
-  const placeCartOrder = useCallback(
-    async (input: CartCheckoutInput): Promise<Order | { error: string }> => {
-      if (cart.length === 0) return { error: 'Giỏ hàng đang trống.' }
-
-      const code = input.promoCode.trim().toUpperCase()
-      const promo = PROMO_CODES[code]
-      const discount = promo ? promo.compute(cartSubtotal) : 0
-      const primaryProduct = cart[0].product
-
-      if (backendConnected) {
-        try {
-          const itemsPayload = cart
-            .filter((item) => item.product.id)
-            .map((item) => ({ productId: item.product.id as number, quantity: item.quantity }))
-
-          const res = await api.createOrder({
-            customerName: input.customerName.trim(),
-            phone: input.phone.trim(),
-            shippingAddress: input.address.trim() || 'Nhận tại cửa hàng',
-            promoCode: promo ? code : '',
-            branchId: BRANCH_ID_MAP[input.branchId],
-            items: itemsPayload.length > 0 ? itemsPayload : [{ productId: 1, quantity: 1 }],
-          })
-
-          if (res.ok) {
-            const created = await res.json()
-            const order: Order = {
-              id: created.id,
-              sku: primaryProduct.sku,
-              productName:
-                cart.length > 1
-                  ? `${primaryProduct.name} và ${cart.length - 1} sản phẩm khác`
-                  : primaryProduct.name,
-              quantity: cartCount,
-              customerName: input.customerName.trim(),
-              phone: input.phone.trim(),
-              address: input.address.trim() || 'Nhận tại cửa hàng',
-              branchId: input.branchId,
-              promoCode: promo ? code : null,
-              subtotal: cartSubtotal,
-              discount,
-              total: created.totalAmount ?? cartSubtotal - discount,
-              status: created.status ?? 'PENDING',
-              createdAt: created.orderDate ?? new Date().toISOString(),
-            }
-            setOrders((prev) => [...prev, order])
-            clearCart()
-            return order
-          }
-        } catch {}
-      }
-
-      // Local order fallback
-      const order: Order = {
-        id: Math.max(...orders.map((o) => o.id), 10250) + 1,
-        sku: primaryProduct.sku,
-        productName:
-          cart.length > 1
-            ? `${primaryProduct.name} và ${cart.length - 1} sản phẩm khác`
-            : primaryProduct.name,
-        quantity: cartCount,
-        customerName: input.customerName.trim(),
-        phone: input.phone.trim(),
-        address: input.address.trim() || 'Nhận tại cửa hàng',
-        branchId: input.branchId,
-        promoCode: promo ? code : null,
-        subtotal: cartSubtotal,
-        discount,
-        total: cartSubtotal - discount,
-        status: 'PENDING',
-        createdAt: new Date().toISOString(),
-      }
-      setOrders((prev) => [...prev, order])
-      clearCart()
-      return order
-    },
-    [cart, cartCount, cartSubtotal, backendConnected, orders, clearCart],
-  )
+  const placeCartOrder = useCallback(async (input: CartCheckoutInput) => {
+    const result = await submit(cart, input)
+    if (!('error' in result)) clearCart()
+    return result
+  }, [cart, submit, clearCart])
 
   /* ── Confirm order ── */
   const confirmOrder = useCallback(
     async (id: number) => {
       setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status: 'CONFIRMED' } : o)))
       if (backendConnected) {
-        try {
-          await api.updateOrderStatus(id, 'CONFIRMED')
-        } catch {}
+        try { await api.orders.updateStatus(id, 'CONFIRMED') } catch {}
       }
     },
     [backendConnected],
   )
 
-  const value: StoreValue = {
-    products,
-    filteredProducts,
-    orders,
-    apiLog,
-    branchId,
-    setBranchId,
-    category,
-    setCategory,
-    brands,
-    toggleBrand,
-    budget,
-    setBudget,
-    query,
-    setQuery,
-    resetFilters,
-    tab,
-    setTab,
-    sort,
-    setSort,
-    orderSku,
-    startOrder,
-    setOrderSku,
-    updateStock,
-    placeOrder,
-    confirmOrder,
-    backendConnected,
-    reloadFromBackend,
-    cart,
-    addToCart,
-    updateCartQty,
-    removeFromCart,
-    clearCart,
-    cartCount,
-    cartSubtotal,
-    placeCartOrder,
-    customer,
-    loginCustomer,
-    logoutCustomer,
-  }
+  const value = useMemo<StoreValue>(
+    () => ({
+      products,
+      filteredProducts,
+      orders,
+      branchId,
+      setBranchId,
+      category,
+      setCategory,
+      brands,
+      toggleBrand,
+      budget,
+      setBudget,
+      query,
+      setQuery,
+      resetFilters,
+      tab,
+      setTab,
+      sort,
+      setSort,
+      page,
+      pageSize,
+      pagedProducts,
+      totalProducts,
+      totalPages,
+      pageLoading,
+      setPage,
+      setPageSize,
+      orderSku,
+      startOrder,
+      setOrderSku,
+      updateStock,
+      placeOrder,
+      confirmOrder,
+      backendConnected,
+      reloadFromBackend,
+      cart,
+      addToCart,
+      updateCartQty,
+      removeFromCart,
+      clearCart,
+      cartCount,
+      cartSubtotal,
+      placeCartOrder,
+      customer,
+      loginCustomer,
+      logoutCustomer,
+    }),
+    [
+      products, filteredProducts, orders, branchId, category, brands, budget, query,
+      tab, sort, page, pageSize, pagedProducts, totalProducts, totalPages, pageLoading,
+      orderSku, backendConnected, cart, cartCount, cartSubtotal, customer,
+      setBranchId, setCategory, toggleBrand, setBudget, setQuery, resetFilters,
+      setTab, setSort, setPage, setPageSize, startOrder, setOrderSku, updateStock,
+      placeOrder, confirmOrder, reloadFromBackend, addToCart, updateCartQty,
+      removeFromCart, clearCart, placeCartOrder, loginCustomer, logoutCustomer,
+    ],
+  )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

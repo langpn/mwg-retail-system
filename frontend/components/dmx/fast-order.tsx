@@ -2,11 +2,14 @@
 
 import { useMemo, useState } from 'react'
 import { CheckCircle2, Clock, MapPin, Minus, Phone, Plus, Tag, Truck, Store, User } from 'lucide-react'
-import { BRANCHES, PROMO_CODES, formatTime, formatVND, getBranch, type BranchId, type Order } from '@/lib/dmx-data'
+import { BRANCHES, formatTime, formatVND, getBranch, type BranchId, type Order } from '@/lib/dmx-data'
+import { usePriceQuote } from '@/lib/pricing'
 import { useStore } from './store-provider'
 import { cn } from '@/lib/utils'
 
 export function FastOrder() {
+  const { products } = useStore()
+  if (!products.length) return <p className="p-5 text-sm text-muted-foreground">Đang tải sản phẩm...</p>
   return (
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <CheckoutForm />
@@ -48,7 +51,7 @@ function Field({
 }
 
 function CheckoutForm() {
-  const { products, orderSku, setOrderSku, branchId: headerBranch, placeOrder } = useStore()
+  const { products, orderSku, setOrderSku, branchId: headerBranch, placeOrder, backendConnected } = useStore()
   const product = products.find((p) => p.sku === orderSku) ?? products[0]
   const initialBranch: BranchId =
     product.stock[headerBranch] > 0 ? headerBranch : (BRANCHES.find((b) => product.stock[b.id] > 0)?.id ?? headerBranch)
@@ -65,24 +68,24 @@ function CheckoutForm() {
 
   const available = product.stock[branch]
   const maxQty = Math.max(1, Math.min(5, available))
-  const subtotal = product.price * quantity
   const promoKey = promo.trim().toUpperCase()
-  const promoDef = PROMO_CODES[promoKey]
-  const discount = promoDef ? promoDef.compute(subtotal) : 0
-  const total = subtotal - discount
+  const quote = usePriceQuote([{ product, quantity }], promoKey, branch, products, backendConnected)
+  const { subtotal, discount, total } = quote
 
   function validate() {
     const next: Record<string, string> = {}
     if (name.trim().length < 2) next.name = 'Vui lòng nhập họ tên khách hàng.'
     if (!/^0\d{9}$/.test(phone.replace(/\s/g, ''))) next.phone = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.'
     if (fulfillment === 'delivery' && address.trim().length < 6) next.address = 'Vui lòng nhập địa chỉ giao hàng.'
-    if (promoKey && !promoDef) next.promo = 'Mã khuyến mãi không hợp lệ.'
+    if (promoKey && !quote.promoApplied) next.promo = quote.promoMessage || 'Mã khuyến mãi không hợp lệ.'
+    if (quote.error) next.form = quote.error
     if (available < quantity) next.form = `Chi nhánh chỉ còn ${available} sản phẩm.`
     return next
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (quote.loading) return
     const v = validate()
     setErrors(v)
     if (Object.keys(v).length > 0) return
@@ -313,10 +316,10 @@ function CheckoutForm() {
             className={cn(inputClass, 'font-mono uppercase placeholder:normal-case')}
           />
           <p id="order-promo-hint" aria-live="polite" className="text-[11px] font-semibold">
-            {promoDef ? (
-              <span className="text-success-ink">Áp dụng thành công: {promoDef.label}</span>
+            {quote.promoApplied ? (
+              <span className="text-success-ink">Áp dụng thành công: {quote.promoLabel || promoKey}</span>
             ) : promoKey ? (
-              <span className="text-muted-foreground">Đang kiểm tra mã “{promoKey}”…</span>
+              <span className="text-muted-foreground">{quote.loading ? `Đang kiểm tra mã “${promoKey}”…` : quote.promoMessage}</span>
             ) : (
               <span className="text-muted-foreground">Nhập MWG5 (-5%) hoặc TET2027 (-10%, tối đa 1.5 triệu)</span>
             )}
@@ -331,7 +334,7 @@ function CheckoutForm() {
             <dd className="tabular font-semibold text-body">{formatVND(subtotal)}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-muted-foreground">Chiết khấu giảm giá {promoDef && <span className="font-mono">({promoKey})</span>}</dt>
+            <dt className="text-muted-foreground">Chiết khấu giảm giá {quote.promoApplied && <span className="font-mono">({promoKey})</span>}</dt>
             <dd className={cn('tabular font-semibold', discount > 0 ? 'text-success-ink' : 'text-body')}>
               {discount > 0 ? `− ${formatVND(discount)}` : formatVND(0)}
             </dd>
@@ -342,9 +345,9 @@ function CheckoutForm() {
           </div>
         </dl>
 
-        {errors.form && (
+        {(errors.form || quote.error) && (
           <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm font-semibold text-danger-ink">
-            {errors.form}
+            {errors.form || quote.error}
           </p>
         )}
         {success && (
@@ -356,7 +359,7 @@ function CheckoutForm() {
 
         <button
           type="submit"
-          disabled={available === 0}
+          disabled={available === 0 || quote.loading || !!quote.error}
           className="h-12 rounded-lg bg-accent text-base font-extrabold text-foreground shadow-sm transition-colors hover:bg-amber-400 focus-visible:ring-4 focus-visible:ring-accent/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground"
         >
           {available === 0 ? 'Tạm hết hàng tại chi nhánh đã chọn' : 'Xác Nhận Đặt Hàng'}
@@ -460,7 +463,7 @@ function OrderCard({ order, onConfirm }: { order: Order; onConfirm: () => void }
       </div>
 
       <p className="mt-2 line-clamp-1 text-sm font-semibold text-body">
-        <span className="tabular">{order.quantity}×</span> {order.productName}
+        {order.items.map((item) => `${item.quantity}× ${item.name}`).join(' · ')}
       </p>
 
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3">

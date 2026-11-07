@@ -22,6 +22,9 @@ import {
   LogOut,
   Home,
   ExternalLink,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -32,7 +35,16 @@ import {
   promotionsApi,
   reviewsApi,
   ping,
-} from '@/lib/dashboard-api'
+  type BackendOrder,
+  type BackendProduct,
+  type BackendCategory,
+  type BackendBrand,
+  type BackendCustomer,
+  type BackendPromotion,
+  type BackendReview,
+  type ProductInput,
+  type ReviewInput,
+} from '@/lib/api'
 
 /* ── Types ── */
 type Section = 'overview' | 'products' | 'orders' | 'customers' | 'promotions' | 'reviews'
@@ -354,23 +366,21 @@ const statusColors: Record<string, string> = {
    ══════════════════════════════════════════ */
 function OverviewSection() {
   const [stats, setStats] = useState({ products: 0, orders: 0, revenue: 0, lowStock: 0, customers: 0, reviews: 0 })
-  const [recentOrders, setRecentOrders] = useState<any[]>([])
+  const [recentOrders, setRecentOrders] = useState<BackendOrder[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [products, orders, inv1, inv2, customers, reviews] = await Promise.all([
+      const [products, orders, inventory, customers, reviews] = await Promise.all([
         productsApi.list(),
         ordersApi.list(),
-        inventoryApi.byBranch(1),
-        inventoryApi.byBranch(2),
+        inventoryApi.stockMatrix(),
         customersApi.list(),
         reviewsApi.list(),
       ])
-      const revenue = orders.reduce((s: number, o: any) => s + (o.totalAmount || 0), 0)
-      const allInv = [...inv1, ...inv2]
-      const lowStock = allInv.filter((i: any) => i.quantity <= 2).length
+      const revenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0)
+      const lowStock = inventory.filter((item) => item.quantity <= 2).length
       setStats({
         products: products.length,
         orders: orders.length,
@@ -434,11 +444,11 @@ function OverviewSection() {
             </tr>
           </thead>
           <tbody>
-            {recentOrders.map((o: any) => (
+            {recentOrders.map((o) => (
               <tr key={o.id} className="border-b last:border-0">
                 <td className="px-4 py-2 font-mono text-xs">#{o.id}</td>
                 <td className="px-4 py-2">{o.customerName}</td>
-                <td className="px-4 py-2 max-w-[200px] truncate">{o.orderItems?.[0]?.product?.name ?? '—'}</td>
+                <td className="px-4 py-2 max-w-[200px] truncate">{o.orderItems?.map((item) => `${item.quantity}× ${item.product.name}`).join(' · ') || '—'}</td>
                 <td className="px-4 py-2 text-right font-medium text-price">{fmtVND(o.totalAmount)}</td>
                 <td className="px-4 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusColors[o.status] ?? ''}`}>
@@ -459,28 +469,89 @@ function OverviewSection() {
 }
 
 /* ══════════════════════════════════════════
-   PRODUCTS CRUD
+   PRODUCTS CRUD (server-side pagination)
    ══════════════════════════════════════════ */
+const ADMIN_PAGE_SIZES = [5, 8, 15]
+
 function ProductsSection() {
-  const [items, setItems] = useState<any[]>([])
-  const [categories, setCategories] = useState<any[]>([])
-  const [brands, setBrands] = useState<any[]>([])
-  const [editing, setEditing] = useState<any | null>(null) // null = closed, {} = new, {id} = edit
+  const [items, setItems] = useState<BackendProduct[]>([])
+  const [categories, setCategories] = useState<BackendCategory[]>([])
+  const [brands, setBrands] = useState<BackendBrand[]>([])
+  const [editing, setEditing] = useState<Partial<BackendProduct> | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
 
+  // Server-side pagination state
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(8)
+  const [totalElements, setTotalElements] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [loading, setLoading] = useState(false)
+
+  // Quick search + price sort (both executed on the server)
+  const [keywordDraft, setKeywordDraft] = useState('')
+  const [keyword, setKeyword] = useState('')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  // Debounce the search box so typing does not fire a request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setKeyword(keywordDraft.trim())
+      setPage(0)
+    }, 350)
+    return () => clearTimeout(t)
+  }, [keywordDraft])
+
   const load = useCallback(async () => {
+    setLoading(true)
     try {
-      const [p, c, b] = await Promise.all([productsApi.list(), productsApi.categories(), productsApi.brands()])
-      setItems(p)
+      const res = await productsApi.page({
+        page,
+        size: pageSize,
+        sortBy: 'price',
+        sortDir,
+        keyword: keyword || undefined,
+      })
+      const content = Array.isArray(res?.content) ? res.content : []
+      const pages = Math.max(1, res?.totalPages ?? 1)
+
+      // Deleting the last row of the last page: clamp back one page.
+      if (res && res.totalPages > 0 && page >= res.totalPages) {
+        setPage(res.totalPages - 1)
+        return
+      }
+
+      setItems(content)
+      setTotalElements(res?.totalElements ?? content.length)
+      setTotalPages(pages)
+    } catch {
+      /* offline */
+    } finally {
+      setLoading(false)
+    }
+  }, [page, pageSize, sortDir, keyword])
+
+  const loadOptions = useCallback(async () => {
+    try {
+      const [c, b] = await Promise.all([productsApi.categories(), productsApi.brands()])
       setCategories(c)
       setBrands(b)
-    } catch { /* offline */ }
+    } catch {
+      /* offline */
+    }
   }, [])
 
-  const didLoad = useRef(false)
-  useEffect(() => { if (!didLoad.current) { didLoad.current = true; load() } }, [load])
+  useEffect(() => {
+    load()
+  }, [load])
 
-  async function handleSave(data: any) {
+  const didLoadOptions = useRef(false)
+  useEffect(() => {
+    if (didLoadOptions.current) return
+    didLoadOptions.current = true
+    loadOptions()
+  }, [loadOptions])
+
+  async function handleSave(data: ProductInput) {
     try {
       if (data.id) {
         await productsApi.update(data.id, data)
@@ -489,7 +560,9 @@ function ProductsSection() {
       }
       setEditing(null)
       load()
-    } catch { alert('Lỗi lưu sản phẩm') }
+    } catch {
+      alert('Lỗi lưu sản phẩm')
+    }
   }
 
   async function handleDelete(id: number) {
@@ -497,12 +570,23 @@ function ProductsSection() {
       await productsApi.remove(id)
       setDeleting(null)
       load()
-    } catch { alert('Lỗi xóa sản phẩm') }
+    } catch {
+      alert('Lỗi xóa sản phẩm')
+    }
   }
+
+  const firstItem = totalElements === 0 ? 0 : page * pageSize + 1
+  const lastItem = Math.min((page + 1) * pageSize, totalElements)
+  const pageList = buildAdminPageList(page, totalPages)
 
   return (
     <div>
-      <SectionHeader title="Quản lý sản phẩm" count={items.length} onRefresh={load} onAdd={() => setEditing({})} />
+      <SectionHeader
+        title="Quản lý sản phẩm"
+        count={totalElements}
+        onRefresh={load}
+        onAdd={() => setEditing({})}
+      />
 
       {/* Modal */}
       {editing !== null && (
@@ -516,8 +600,109 @@ function ProductsSection() {
       )}
 
       {deleting !== null && (
-        <Confirm message="Bạn chắc chắn muốn xóa sản phẩm này?" onYes={() => handleDelete(deleting)} onNo={() => setDeleting(null)} />
+        <Confirm
+          message="Bạn chắc chắn muốn xóa sản phẩm này?"
+          onYes={() => handleDelete(deleting)}
+          onNo={() => setDeleting(null)}
+        />
       )}
+
+      {/* Toolbar: quick search · price sort · page size · range · pager */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border bg-card px-3 py-2.5">
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={keywordDraft}
+            onChange={(e) => setKeywordDraft(e.target.value)}
+            placeholder="Tìm theo tên, SKU…"
+            aria-label="Tìm kiếm sản phẩm"
+            className="h-8 w-56 rounded-lg border border-border bg-background pr-2 pl-8 text-xs focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+            setPage(0)
+          }}
+          className="flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-xs font-semibold hover:border-primary hover:text-primary"
+          title="Đảo chiều sắp xếp theo cột Giá"
+        >
+          Giá {sortDir === 'asc' ? '↑' : '↓'}
+        </button>
+
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="font-semibold">Hiển thị</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value))
+              setPage(0)
+            }}
+            aria-label="Số dòng mỗi trang"
+            className="h-8 cursor-pointer rounded-lg border border-border bg-background px-2 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+          >
+            {ADMIN_PAGE_SIZES.map((s) => (
+              <option key={s} value={s}>
+                {s} dòng/trang
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <span className="text-xs text-muted-foreground">
+          Hiển thị{' '}
+          <strong className="tabular font-bold text-foreground">
+            {firstItem} – {lastItem}
+          </strong>{' '}
+          / Tổng <strong className="tabular font-bold text-foreground">{totalElements}</strong> sản phẩm
+        </span>
+
+        {loading && <RefreshCw className="size-3.5 animate-spin text-primary" aria-label="Đang tải" />}
+
+        <nav aria-label="Chuyển trang sản phẩm" className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page <= 0}
+            className="flex h-8 items-center gap-0.5 rounded-lg border px-2 text-xs font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <ChevronLeft className="size-3.5" />
+            Trước
+          </button>
+          {pageList.map((entry, i) =>
+            entry === 'ellipsis' ? (
+              <span key={`gap-${i}`} className="px-1 text-xs text-muted-foreground" aria-hidden="true">
+                …
+              </span>
+            ) : (
+              <button
+                key={entry}
+                type="button"
+                onClick={() => setPage(entry)}
+                aria-current={entry === page ? 'page' : undefined}
+                className={`tabular size-8 rounded-lg text-xs font-bold ${
+                  entry === page
+                    ? 'bg-primary text-primary-foreground'
+                    : 'border hover:bg-muted'
+                }`}
+              >
+                {entry + 1}
+              </button>
+            ),
+          )}
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className="flex h-8 items-center gap-0.5 rounded-lg border px-2 text-xs font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Sau
+            <ChevronRight className="size-3.5" />
+          </button>
+        </nav>
+      </div>
 
       <div className="overflow-auto rounded-xl border bg-card">
         <table className="w-full text-sm">
@@ -528,12 +713,12 @@ function ProductsSection() {
               <th className="px-3 py-2 text-left">Tên sản phẩm</th>
               <th className="px-3 py-2 text-left">Danh mục</th>
               <th className="px-3 py-2 text-left">Thương hiệu</th>
-              <th className="px-3 py-2 text-right">Giá</th>
+              <th className="px-3 py-2 text-right">Giá {sortDir === 'asc' ? '↑' : '↓'}</th>
               <th className="px-3 py-2 text-center">Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((p: any) => (
+            {items.map((p) => (
               <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-3 py-2 text-xs text-muted-foreground">{p.id}</td>
                 <td className="px-3 py-2 font-mono text-xs">{p.sku}</td>
@@ -553,11 +738,34 @@ function ProductsSection() {
                 </td>
               </tr>
             ))}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
+                  {loading ? 'Đang tải…' : 'Không tìm thấy sản phẩm phù hợp'}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
     </div>
   )
+}
+
+/** Compact page list for the admin table (0-based indices). */
+function buildAdminPageList(current: number, total: number): (number | 'ellipsis')[] {
+  if (total <= 5) return Array.from({ length: total }, (_, i) => i)
+
+  const items: (number | 'ellipsis')[] = [0]
+  const start = Math.max(1, current - 1)
+  const end = Math.min(total - 2, current + 1)
+
+  if (start > 1) items.push('ellipsis')
+  for (let i = start; i <= end; i++) items.push(i)
+  if (end < total - 2) items.push('ellipsis')
+
+  items.push(total - 1)
+  return items
 }
 
 function ProductForm({
@@ -567,10 +775,10 @@ function ProductForm({
   onSave,
   onCancel,
 }: {
-  initial: any
-  categories: any[]
-  brands: any[]
-  onSave: (d: any) => void
+  initial: Partial<BackendProduct>
+  categories: BackendCategory[]
+  brands: BackendBrand[]
+  onSave: (d: ProductInput) => void
   onCancel: () => void
 }) {
   const [sku, setSku] = useState(initial.sku ?? '')
@@ -602,11 +810,11 @@ function ProductForm({
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tên sản phẩm" required className="w-full rounded-lg border px-3 py-2 text-sm" />
           <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Giá" type="number" required className="w-full rounded-lg border px-3 py-2 text-sm" />
           <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Mô tả" rows={2} className="w-full rounded-lg border px-3 py-2 text-sm" />
-          <select value={catId} onChange={(e) => setCatId(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
-            {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          <select value={catId} onChange={(e) => setCatId(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <select value={brandId} onChange={(e) => setBrandId(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
-            {brands.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          <select value={brandId} onChange={(e) => setBrandId(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
+            {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </div>
         <div className="mt-4 flex justify-end gap-2">
@@ -624,7 +832,7 @@ function ProductForm({
    ORDERS Management
    ══════════════════════════════════════════ */
 function OrdersSection() {
-  const [items, setItems] = useState<any[]>([])
+  const [items, setItems] = useState<BackendOrder[]>([])
   const [filter, setFilter] = useState('ALL')
 
   const load = useCallback(async () => {
@@ -641,7 +849,7 @@ function OrdersSection() {
     } catch { alert('Lỗi cập nhật trạng thái') }
   }
 
-  const filtered = filter === 'ALL' ? items : items.filter((o: any) => o.status === filter)
+  const filtered = filter === 'ALL' ? items : items.filter((o) => o.status === filter)
 
   return (
     <div>
@@ -676,12 +884,12 @@ function OrdersSection() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((o: any) => (
+            {filtered.map((o) => (
               <tr key={o.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-3 py-2 font-mono text-xs">#{o.id}</td>
                 <td className="px-3 py-2">{o.customerName}</td>
                 <td className="px-3 py-2 text-xs">{o.phone}</td>
-                <td className="px-3 py-2 max-w-[200px] truncate text-xs">{o.orderItems?.[0]?.product?.name ?? '—'}</td>
+                <td className="px-3 py-2 max-w-[200px] truncate text-xs">{o.orderItems?.map((item) => `${item.quantity}× ${item.product.name}`).join(' · ') || '—'}</td>
                 <td className="px-3 py-2 text-right font-medium text-price">{fmtVND(o.totalAmount)}</td>
                 <td className="px-3 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusColors[o.status] ?? ''}`}>
@@ -722,9 +930,11 @@ function OrdersSection() {
 /* ══════════════════════════════════════════
    CUSTOMERS CRUD
    ══════════════════════════════════════════ */
+type CustomerInput = Omit<BackendCustomer, 'id'> & { id?: number }
+
 function CustomersSection() {
-  const [items, setItems] = useState<any[]>([])
-  const [editing, setEditing] = useState<any | null>(null)
+  const [items, setItems] = useState<BackendCustomer[]>([])
+  const [editing, setEditing] = useState<Partial<BackendCustomer> | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
 
   const load = useCallback(async () => {
@@ -734,7 +944,7 @@ function CustomersSection() {
   const didLoad = useRef(false)
   useEffect(() => { if (!didLoad.current) { didLoad.current = true; load() } }, [load])
 
-  async function handleSave(data: any) {
+  async function handleSave(data: CustomerInput) {
     try {
       if (data.id) await customersApi.update(data.id, data)
       else await customersApi.create(data)
@@ -771,7 +981,7 @@ function CustomersSection() {
             </tr>
           </thead>
           <tbody>
-            {items.map((c: any) => (
+            {items.map((c) => (
               <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-3 py-2 text-xs text-muted-foreground">{c.id}</td>
                 <td className="px-3 py-2 font-medium">{c.fullName}</td>
@@ -796,7 +1006,7 @@ function CustomersSection() {
   )
 }
 
-function CustomerForm({ initial, onSave, onCancel }: { initial: any; onSave: (d: any) => void; onCancel: () => void }) {
+function CustomerForm({ initial, onSave, onCancel }: { initial: Partial<BackendCustomer>; onSave: (d: CustomerInput) => void; onCancel: () => void }) {
   const [fullName, setFullName] = useState(initial.fullName ?? '')
   const [phone, setPhone] = useState(initial.phone ?? '')
   const [email, setEmail] = useState(initial.email ?? '')
@@ -832,8 +1042,8 @@ function CustomerForm({ initial, onSave, onCancel }: { initial: any; onSave: (d:
    PROMOTIONS CRUD
    ══════════════════════════════════════════ */
 function PromotionsSection() {
-  const [items, setItems] = useState<any[]>([])
-  const [editing, setEditing] = useState<any | null>(null)
+  const [items, setItems] = useState<BackendPromotion[]>([])
+  const [editing, setEditing] = useState<Partial<BackendPromotion> | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
 
   const load = useCallback(async () => {
@@ -843,7 +1053,7 @@ function PromotionsSection() {
   const didLoad = useRef(false)
   useEffect(() => { if (!didLoad.current) { didLoad.current = true; load() } }, [load])
 
-  async function handleSave(data: any) {
+  async function handleSave(data: Partial<BackendPromotion>) {
     try {
       if (data.id) await promotionsApi.update(data.id, data)
       else await promotionsApi.create(data)
@@ -880,7 +1090,7 @@ function PromotionsSection() {
             </tr>
           </thead>
           <tbody>
-            {items.map((p: any) => (
+            {items.map((p) => (
               <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-3 py-2 text-xs text-muted-foreground">{p.id}</td>
                 <td className="px-3 py-2 font-mono font-bold text-primary">{p.promoCode}</td>
@@ -911,7 +1121,7 @@ function PromotionsSection() {
   )
 }
 
-function PromotionForm({ initial, onSave, onCancel }: { initial: any; onSave: (d: any) => void; onCancel: () => void }) {
+function PromotionForm({ initial, onSave, onCancel }: { initial: Partial<BackendPromotion>; onSave: (d: Partial<BackendPromotion>) => void; onCancel: () => void }) {
   const [promoCode, setPromoCode] = useState(initial.promoCode ?? '')
   const [discountPercent, setDiscountPercent] = useState(initial.discountPercent ?? '')
   const [description, setDescription] = useState(initial.description ?? '')
@@ -956,9 +1166,9 @@ function PromotionForm({ initial, onSave, onCancel }: { initial: any; onSave: (d
    REVIEWS CRUD
    ══════════════════════════════════════════ */
 function ReviewsSection() {
-  const [items, setItems] = useState<any[]>([])
-  const [products, setProducts] = useState<any[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
+  const [items, setItems] = useState<BackendReview[]>([])
+  const [products, setProducts] = useState<BackendProduct[]>([])
+  const [customers, setCustomers] = useState<BackendCustomer[]>([])
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<number | null>(null)
 
@@ -974,7 +1184,7 @@ function ReviewsSection() {
   const didLoad = useRef(false)
   useEffect(() => { if (!didLoad.current) { didLoad.current = true; load() } }, [load])
 
-  async function handleCreate(data: any) {
+  async function handleCreate(data: ReviewInput) {
     try { await reviewsApi.create(data); setAdding(false); load() } catch { alert('Lỗi tạo đánh giá') }
   }
 
@@ -1007,7 +1217,7 @@ function ReviewsSection() {
             </tr>
           </thead>
           <tbody>
-            {items.map((r: any) => (
+            {items.map((r) => (
               <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.id}</td>
                 <td className="px-3 py-2 text-xs max-w-[180px] truncate">{r.product?.name ?? `Product #${r.product?.id}`}</td>
@@ -1038,9 +1248,9 @@ function ReviewForm({
   onSave,
   onCancel,
 }: {
-  products: any[]
-  customers: any[]
-  onSave: (d: any) => void
+  products: BackendProduct[]
+  customers: BackendCustomer[]
+  onSave: (d: ReviewInput) => void
   onCancel: () => void
 }) {
   const [productId, setProductId] = useState(products[0]?.id ?? '')
@@ -1063,11 +1273,11 @@ function ReviewForm({
       <form onSubmit={submit} className="w-full max-w-md rounded-xl border bg-card p-5 shadow-lg">
         <h3 className="mb-4 font-bold">Thêm đánh giá</h3>
         <div className="space-y-3">
-          <select value={productId} onChange={(e) => setProductId(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
-            {products.map((p: any) => <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}
+          <select value={productId} onChange={(e) => setProductId(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
+            {products.map((p) => <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}
           </select>
-          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
-            {customers.map((c: any) => <option key={c.id} value={c.id}>{c.fullName} ({c.phone})</option>)}
+          <select value={customerId} onChange={(e) => setCustomerId(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.fullName} ({c.phone})</option>)}
           </select>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Đánh giá</label>

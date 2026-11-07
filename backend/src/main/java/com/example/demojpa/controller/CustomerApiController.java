@@ -41,6 +41,18 @@ public class CustomerApiController {
     }
 
     /**
+     * GET /api/v1/customers/lookup?identifier=...
+     * Tra cứu khách hàng theo số điện thoại hoặc email (không phân biệt hoa/thường).
+     * Trả về 404 nếu không tìm thấy, 400 nếu identifier trống.
+     */
+    @GetMapping("/lookup")
+    public ResponseEntity<Customer> lookupCustomer(@RequestParam String identifier) {
+        return customerService.lookup(identifier)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
      * GET /api/v1/customers/phone/{phone}
      * Tìm khách hàng thành viên theo số điện thoại
      */
@@ -70,10 +82,6 @@ public class CustomerApiController {
     public ResponseEntity<?> createCustomer(@RequestBody Customer customer) {
         if (customer.getPhone() == null || customer.getPhone().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Số điện thoại không được để trống"));
-        }
-        if (customerService.findByPhone(customer.getPhone().trim()).isPresent()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("message", "Số điện thoại này đã được đăng ký thành viên"));
         }
         Customer saved = customerService.createCustomer(customer);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);

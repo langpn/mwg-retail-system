@@ -26,7 +26,13 @@ public class Brand {
     @Column(name = "description", length = 255)
     private String description;
 
-    @OneToMany(mappedBy = "brand", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    /**
+     * @OneToMany: 1 thương hiệu có nhiều sản phẩm.
+     * mappedBy = "brand": Thuộc tính 'brand' bên class Product làm chủ quan hệ.
+     * cascade = {CascadeType.PERSIST, CascadeType.MERGE}: Không dùng CascadeType.REMOVE để tránh xóa nhầm dây chuyền toàn bộ sản phẩm khi thao tác thương hiệu.
+     * @JsonIgnore: Chống lỗi vòng lặp đệ quy vô hạn khi Spring Boot serialize sang JSON.
+     */
+    @OneToMany(mappedBy = "brand", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Product> products = new ArrayList<>();
 

@@ -1,0 +1,15 @@
+# ============================================================================
+#  MWG Retail System - Thuoc tinh Git
+# ============================================================================
+#  Bundle Next.js duoc build roi commit vao repo vi Spring Boot phuc vu truc
+#  tiep tu backend/src/main/resources/static/ (chay demo bang 1 lenh, khong
+#  can Node.js). Cac file nay la OUTPUT sinh tu dong tu frontend/app, nen:
+#    - -diff                  : git khong hien thi diff text cua tung file
+#    - linguist-generated=true: GitHub gop ca thu muc va gan nhan "Generated"
+#  => Review chi can doc diff cua source that (frontend/components, backend java).
+backend/src/main/resources/static/** -diff linguist-generated=true
+
+# Anh/icon trong bundle la file nhi phan, khong bao gio diff text
+backend/src/main/resources/static/**/*.png binary
+backend/src/main/resources/static/**/*.jpg binary
+backend/src/main/resources/static/**/*.webp binary

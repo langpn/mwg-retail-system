@@ -20,7 +20,7 @@ import java.io.IOException;
  *   "/product/DMX-TV-001" -> Spring Boot khong tim thay file tuong ung -> tra ve 404.
  *
  * GIAI PHAP:
- *   Filter nay chi lam MOT viec duy nhat: voi moi request GET khong co duoi file,
+ *   Filter nay chi lam MOT viec duy nhat: voi moi request GET/HEAD khong co duoi file,
  *   thu tim file "<uri>.html" trong classpath:/static/.
  *     - Neu TIM THAY  -> forward noi bo toi file .html do (trinh duyet van giu URL sach).
  *     - Neu KHONG THAY -> tra request ve cho chuoi filter tiep theo, de Spring xu ly
@@ -44,13 +44,21 @@ public class StaticPageRoutingFilter extends OncePerRequestFilter {
     /** Tien to REST API - tuyet doi khong duoc dinh tuyen lai. */
     private static final String API_PREFIX = "/api/";
 
+    /** Tien to Spring MVC Controllers (vi du /mvc/catalog) - de DispatcherServlet xu ly. */
+    private static final String MVC_PREFIX = "/mvc";
+
+    /** Tien to H2 Database Console. */
+    private static final String H2_CONSOLE_PREFIX = "/h2-console";
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
 
-        // Chi xu ly GET: PUT/POST/DELETE cua REST API khong lien quan toi trang tinh.
-        if ("GET".equalsIgnoreCase(request.getMethod())) {
+        // Chi xu ly GET va HEAD: PUT/POST/DELETE cua REST API khong lien quan toi trang tinh.
+        // HEAD can thiet vi Next.js router gui HEAD de kiem tra truoc (prefetch) cac <Link>.
+        String method = request.getMethod();
+        if ("GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method)) {
             String htmlPage = resolveHtmlPage(request.getRequestURI());
             if (htmlPage != null) {
                 // Forward noi bo: trinh duyet van hien "localhost:8088/cart"
@@ -85,8 +93,10 @@ public class StaticPageRoutingFilter extends OncePerRequestFilter {
             return null;
         }
 
-        // Khong bao gio dinh tuyen lai REST API.
-        if (clean.startsWith(API_PREFIX)) {
+        // Khong bao gio dinh tuyen lai REST API, Spring MVC Controllers va H2 Console.
+        if (clean.startsWith(API_PREFIX)
+                || clean.equals(MVC_PREFIX) || clean.startsWith(MVC_PREFIX + "/")
+                || clean.equals(H2_CONSOLE_PREFIX) || clean.startsWith(H2_CONSOLE_PREFIX + "/")) {
             return null;
         }
 

@@ -29,6 +29,10 @@ public class Promotion {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    /** Mức giảm giá tối đa (VNĐ). null = không giới hạn. */
+    @Column(name = "max_discount_amount")
+    private Double maxDiscountAmount;
+
     @OneToMany(mappedBy = "promotion", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<CustomerOrder> orders = new ArrayList<>();
@@ -41,6 +45,14 @@ public class Promotion {
         this.discountPercent = discountPercent;
         this.description = description;
         this.isActive = isActive;
+    }
+
+    public Promotion(String promoCode, Double discountPercent, String description, Boolean isActive, Double maxDiscountAmount) {
+        this.promoCode = promoCode;
+        this.discountPercent = discountPercent;
+        this.description = description;
+        this.isActive = isActive;
+        this.maxDiscountAmount = maxDiscountAmount;
     }
 
     // Getters and Setters
@@ -82,6 +94,14 @@ public class Promotion {
 
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
+    }
+
+    public Double getMaxDiscountAmount() {
+        return maxDiscountAmount;
+    }
+
+    public void setMaxDiscountAmount(Double maxDiscountAmount) {
+        this.maxDiscountAmount = maxDiscountAmount;
     }
 
     public List<CustomerOrder> getOrders() {

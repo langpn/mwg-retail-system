@@ -35,8 +35,42 @@ public class CustomerService {
         return customerRepo.findByEmail(email);
     }
 
+    /**
+     * Tra cứu khách hàng theo số điện thoại hoặc email (không phân biệt hoa/thường).
+     *
+     * @param identifier số điện thoại hoặc email
+     * @return Optional chứa khách hàng nếu tìm thấy
+     */
+    public Optional<Customer> lookup(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            throw new IllegalArgumentException("Thông tin tra cứu không được để trống");
+        }
+        String trimmed = identifier.trim();
+        // Thử tìm theo số điện thoại trước
+        Optional<Customer> byPhone = customerRepo.findByPhone(trimmed);
+        if (byPhone.isPresent()) {
+            return byPhone;
+        }
+        // Nếu không có thì tìm theo email (không phân biệt hoa/thường)
+        return customerRepo.findByEmailIgnoreCase(trimmed);
+    }
+
     public Customer createCustomer(Customer customer) {
+        if (customer.getPhone() == null || customer.getPhone().isBlank()) {
+            throw new IllegalArgumentException("Số điện thoại không được để trống");
+        }
+        String phone = customer.getPhone().trim();
+        if (customerRepo.findByPhone(phone).isPresent()) {
+            throw new DuplicatePhoneException();
+        }
+        customer.setPhone(phone);
         return customerRepo.save(customer);
+    }
+
+    public static class DuplicatePhoneException extends IllegalArgumentException {
+        public DuplicatePhoneException() {
+            super("Số điện thoại này đã được đăng ký thành viên");
+        }
     }
 
     public Optional<Customer> updateCustomer(Long id, Customer updated) {

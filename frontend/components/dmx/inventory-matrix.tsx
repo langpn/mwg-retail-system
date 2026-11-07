@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Activity, Minus, Plus, Send, Terminal } from 'lucide-react'
+import { Minus, Plus, Save } from 'lucide-react'
 import {
   BRANCHES,
   CATEGORIES,
-  formatTime,
   formatVND,
   getBranch,
   type BranchId,
@@ -23,7 +22,7 @@ export function InventoryMatrix() {
   const outCount = filteredProducts.filter((p) => p.stock[viewBranch] === 0).length
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid gap-4">
       <section aria-labelledby="matrix-title" className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex flex-col gap-3 border-b border-border px-4 py-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -66,7 +65,7 @@ export function InventoryMatrix() {
                 <th scope="col" className="px-3 py-2.5 text-right">Tồn kho chi nhánh</th>
                 <th scope="col" className="px-3 py-2.5 text-right">ĐMX {other.district}</th>
                 <th scope="col" className="px-3 py-2.5">Trạng thái tồn kho</th>
-                <th scope="col" className="px-3 py-2.5">Cập nhật nhanh · PUT</th>
+                <th scope="col" className="px-3 py-2.5">Cập nhật nhanh</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -80,8 +79,6 @@ export function InventoryMatrix() {
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">Không có sản phẩm nào phù hợp với bộ lọc hiện tại.</p>
         )}
       </section>
-
-      <ApiLogPanel />
     </div>
   )
 }
@@ -174,10 +171,11 @@ function InventoryRow({ product, branchId, otherId }: { product: Product; branch
           <button
             type="submit"
             disabled={!dirty}
-            className="flex h-8 items-center gap-1 rounded-lg bg-primary px-2.5 font-mono text-[11px] font-bold text-primary-foreground transition-colors hover:bg-primary-deep disabled:bg-secondary disabled:text-muted-foreground"
+            aria-label={`Lưu tồn kho ${product.sku}`}
+            className="flex h-8 items-center gap-1 rounded-lg bg-primary px-2.5 text-[11px] font-bold text-primary-foreground transition-colors hover:bg-primary-deep disabled:bg-secondary disabled:text-muted-foreground"
           >
-            <Send className="size-3" aria-hidden="true" />
-            PUT
+            <Save className="size-3.5" aria-hidden="true" />
+            Lưu
           </button>
         </form>
       </td>
@@ -185,62 +183,3 @@ function InventoryRow({ product, branchId, otherId }: { product: Product; branch
   )
 }
 
-const METHOD_STYLES = {
-  GET: 'text-purple-300',
-  PUT: 'text-sky-300',
-  POST: 'text-emerald-300',
-  PATCH: 'text-amber-300',
-} as const
-
-function ApiLogPanel() {
-  const { apiLog } = useStore()
-  return (
-    <aside
-      aria-labelledby="api-log-title"
-      className="flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-950 text-slate-200"
-    >
-      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-        <h2 id="api-log-title" className="flex items-center gap-2 text-sm font-bold text-white">
-          <Terminal className="size-4 text-sky-400" aria-hidden="true" />
-          Nhật Ký Gọi REST API
-        </h2>
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
-          <Activity className="size-3.5" aria-hidden="true" />
-          Trực tiếp
-        </span>
-      </div>
-      <div className="px-4 py-2 font-mono text-[11px] text-slate-500">
-        spring-boot-3 · inventory-service · mysql:8 (10 bảng)
-      </div>
-      <ol aria-live="polite" className="flex flex-1 flex-col gap-2 px-4 pb-4 font-mono text-xs">
-        {apiLog.length === 0 && (
-          <li className="rounded-lg border border-dashed border-slate-800 px-3 py-6 text-center text-slate-500">
-            Đang chờ yêu cầu… Hãy chỉnh sửa số lượng tồn kho rồi bấm nút PUT.
-          </li>
-        )}
-        {apiLog.map((log) => (
-          <li key={log.id} className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate">
-                <span className={cn('font-bold', METHOD_STYLES[log.method])}>{log.method}</span>{' '}
-                <span className="text-slate-300">{log.path}</span>
-              </span>
-              <span className={cn(
-                'shrink-0 rounded px-1.5 text-[10px] font-bold',
-                log.status >= 200 && log.status < 300
-                  ? 'bg-emerald-500/15 text-emerald-300'
-                  : 'bg-red-500/15 text-red-300',
-              )}>
-                {log.status}
-              </span>
-            </div>
-            <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-slate-500">
-              <span className="truncate">{log.detail}</span>
-              <span className="tabular shrink-0">{formatTime(log.at)}</span>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </aside>
-  )
-}
