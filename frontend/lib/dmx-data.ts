@@ -39,6 +39,7 @@ export interface Order {
   total: number
   status: OrderStatus
   createdAt: string
+  items: { sku: string; name: string; quantity: number; unitPrice: number }[]
 }
 
 export const BRANCHES: Branch[] = [
@@ -94,17 +95,6 @@ export function matchesBudget(price: number, budget: BudgetId) {
   }
 }
 
-export const PROMO_CODES: Record<string, { label: string; compute: (subtotal: number) => number }> = {
-  MWG5: {
-    label: 'Giảm 5% toàn đơn',
-    compute: (subtotal) => Math.round(subtotal * 0.05),
-  },
-  TET2027: {
-    label: 'Tết 2027 · Giảm 10% (tối đa 1.500.000 ₫)',
-    compute: (subtotal) => Math.min(Math.round(subtotal * 0.1), 1_500_000),
-  },
-}
-
 export const INITIAL_PRODUCTS: Product[] = [
   {
     sku: 'DMX-MG-001',
@@ -114,7 +104,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 7_490_000,
     listPrice: 9_190_000,
     specs: ['Inverter tiết kiệm điện', 'Lồng ngang 8.5 kg', 'Giặt hơi nước'],
-    image: '/products/washer-front.png',
+    image: '/products/washer-front.webp',
     stock: { q9: 4, td: 2 },
   },
   {
@@ -125,7 +115,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 11_990_000,
     listPrice: 14_490_000,
     specs: ['Cảm biến AI Wash', 'Lồng ngang 10 kg', 'Bọt bong bóng Ecobubble'],
-    image: '/products/washer-front.png',
+    image: '/products/washer-front.webp',
     stock: { q9: 0, td: 5 },
   },
   {
@@ -136,7 +126,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 6_890_000,
     listPrice: 8_290_000,
     specs: ['Inverter tiết kiệm điện', 'Lồng đứng 12 kg', 'Xoay đảo chiều TurboDrum'],
-    image: '/products/washer-top.png',
+    image: '/products/washer-top.webp',
     stock: { q9: 7, td: 3 },
   },
   {
@@ -147,7 +137,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 8_290_000,
     listPrice: 9_690_000,
     specs: ['Tạo bọt Active Foam', 'Lồng đứng 9 kg', 'Đánh bay vết bẩn'],
-    image: '/products/washer-top.png',
+    image: '/products/washer-top.webp',
     stock: { q9: 2, td: 0 },
   },
   {
@@ -158,7 +148,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 14_990_000,
     listPrice: 19_990_000,
     specs: ['Digital Inverter', 'Side by Side 655 lít', 'Làm lạnh vòm'],
-    image: '/products/fridge-sbs.png',
+    image: '/products/fridge-sbs.webp',
     stock: { q9: 3, td: 1 },
   },
   {
@@ -169,7 +159,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 32_490_000,
     listPrice: 38_900_000,
     specs: ['Gõ cửa sáng màn hình InstaView', 'Side by Side 635 lít', 'Kháng khuẩn UVnano'],
-    image: '/products/fridge-sbs.png',
+    image: '/products/fridge-sbs.webp',
     stock: { q9: 0, td: 0 },
   },
   {
@@ -180,7 +170,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 24_990_000,
     listPrice: 29_490_000,
     specs: ['Đông mềm Prime Fresh+', 'Multi Door 495 lít', 'Khử mùi Nanoe X'],
-    image: '/products/fridge-multi.png',
+    image: '/products/fridge-multi.webp',
     stock: { q9: 1, td: 4 },
   },
   {
@@ -191,7 +181,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 18_490_000,
     listPrice: 22_990_000,
     specs: ['Origin Inverter', 'Multi Door 515 lít', 'Khử mùi Ag+ Bio'],
-    image: '/products/fridge-multi.png',
+    image: '/products/fridge-multi.webp',
     stock: { q9: 5, td: 2 },
   },
   {
@@ -202,7 +192,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 29_900_000,
     listPrice: 39_900_000,
     specs: ['Màn hình OLED evo', 'Hình ảnh 4K 120Hz', 'Hệ điều hành webOS'],
-    image: '/products/tv-oled.png',
+    image: '/products/tv-oled.webp',
     stock: { q9: 2, td: 3 },
   },
   {
@@ -213,7 +203,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 17_490_000,
     listPrice: 23_900_000,
     specs: ['Chấm lượng tử Quantum Dot', 'Tần số quét 4K 120Hz', 'Hệ điều hành Tizen'],
-    image: '/products/tv-qled.png',
+    image: '/products/tv-qled.webp',
     stock: { q9: 6, td: 0 },
   },
   {
@@ -224,7 +214,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 9_490_000,
     listPrice: 12_490_000,
     specs: ['Google TV', 'Hình ảnh 4K HDR10', 'Âm thanh vòm Dolby Atmos'],
-    image: '/products/tv-qled.png',
+    image: '/products/tv-qled.webp',
     stock: { q9: 8, td: 6 },
   },
   {
@@ -235,7 +225,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 10_990_000,
     listPrice: 13_990_000,
     specs: ['Rạp phim HDR Cinema', 'Màn hình 4K 50 inch', 'Google TV'],
-    image: '/products/tv-oled.png',
+    image: '/products/tv-oled.webp',
     stock: { q9: 0, td: 2 },
   },
   {
@@ -246,7 +236,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 1_990_000,
     listPrice: 2_790_000,
     specs: ['Dung tích 5.5 lít', 'Bảng điều khiển cảm ứng', '8 chương trình tự động'],
-    image: '/products/airfryer.png',
+    image: '/products/airfryer.webp',
     stock: { q9: 12, td: 9 },
   },
   {
@@ -257,7 +247,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 4_290_000,
     listPrice: 5_190_000,
     specs: ['Nấu cao tần IH', 'Dung tích 1.5 lít', 'Lòng nồi phủ kim cương'],
-    image: '/products/ricecooker.png',
+    image: '/products/ricecooker.webp',
     stock: { q9: 3, td: 0 },
   },
   {
@@ -268,7 +258,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 2_490_000,
     listPrice: 2_990_000,
     specs: ['Nhiệt thông minh Fuzzy Logic', 'Dung tích 1.8 lít', 'Giữ ấm 24 giờ'],
-    image: '/products/ricecooker.png',
+    image: '/products/ricecooker.webp',
     stock: { q9: 0, td: 7 },
   },
   {
@@ -279,7 +269,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 3_190_000,
     listPrice: 3_990_000,
     specs: ['Dung tích lớn 6 lít', 'Tiết kiệm điện Smart Inverter', 'Điều khiển qua điện thoại'],
-    image: '/products/airfryer.png',
+    image: '/products/airfryer.webp',
     stock: { q9: 5, td: 4 },
   },
 ]
@@ -290,6 +280,7 @@ export const INITIAL_ORDERS: Order[] = [
     sku: 'DMX-TV-001',
     productName: 'Smart Tivi OLED LG 4K 55 inch OLED55C4PSA',
     quantity: 1,
+    items: [{ sku: 'DMX-TV-001', name: 'Smart Tivi OLED LG 4K 55 inch OLED55C4PSA', quantity: 1, unitPrice: 29_900_000 }],
     customerName: 'Nguyễn Minh Khang',
     phone: '0903 412 886',
     address: '12 Đường số 6, P. Linh Chiểu, TP. Thủ Đức',
@@ -306,6 +297,7 @@ export const INITIAL_ORDERS: Order[] = [
     sku: 'DMX-MG-001',
     productName: 'Máy giặt Toshiba Inverter 8.5 kg TW-BK95S3V lồng ngang',
     quantity: 1,
+    items: [{ sku: 'DMX-MG-001', name: 'Máy giặt Toshiba Inverter 8.5 kg TW-BK95S3V lồng ngang', quantity: 1, unitPrice: 7_490_000 }],
     customerName: 'Trần Thị Bảo Ngọc',
     phone: '0938 220 517',
     address: '45 Man Thiện, P. Hiệp Phú, TP. Thủ Đức',
@@ -322,6 +314,7 @@ export const INITIAL_ORDERS: Order[] = [
     sku: 'DMX-GD-001',
     productName: 'Nồi chiên không dầu Toshiba 5.5 lít MM-AF55PVN',
     quantity: 2,
+    items: [{ sku: 'DMX-GD-001', name: 'Nồi chiên không dầu Toshiba 5.5 lít MM-AF55PVN', quantity: 2, unitPrice: 1_990_000 }],
     customerName: 'Lê Hoàng Phúc',
     phone: '0977 105 334',
     address: 'Nhận tại cửa hàng',
