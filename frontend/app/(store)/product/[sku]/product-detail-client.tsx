@@ -80,7 +80,11 @@ function ProductDetailBody({ product }: { product: Product }) {
   useEffect(() => {
     if ((product.stock[branchId] ?? 0) > 0) return
     const inStockBranch = BRANCHES.find((b) => (product.stock[b.id] ?? 0) > 0)
-    if (inStockBranch) setBranchId(inStockBranch.id)
+    if (inStockBranch) {
+      setBranchId(inStockBranch.id)
+      setQuantity(1)
+      setNotice('')
+    }
   }, [product, branchId, setBranchId])
 
   useEffect(() => {
@@ -177,18 +181,18 @@ function ProductDetailBody({ product }: { product: Product }) {
 
         <section className="mt-4 grid gap-8 rounded-2xl border border-border bg-card p-5 shadow-2xs lg:grid-cols-[minmax(0,1fr)_460px] lg:p-8">
           <div className="flex flex-col justify-between gap-5">
-            <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-xl bg-secondary/40 p-8 sm:p-10">
+            <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-b from-secondary/60 via-secondary/25 to-card px-6 pt-12 pb-6 sm:p-10">
               <img
                 src={product.image || '/placeholder.svg'}
                 alt={product.name}
-                className="max-h-80 w-full object-contain mix-blend-multiply"
+                className="max-h-80 w-full object-contain mix-blend-multiply transition-transform duration-300 hover:scale-[1.03]"
               />
               {discountPct > 0 && (
-                <span className="tabular absolute top-4 left-4 rounded-lg bg-price px-2.5 py-1 text-xs font-extrabold text-white shadow-xs">
+                <span className="tabular absolute top-3.5 left-3.5 rounded-lg bg-price px-2.5 py-1 text-xs font-extrabold text-white shadow-xs sm:top-4 sm:left-4">
                   −{discountPct}%
                 </span>
               )}
-              <span className="absolute top-4 right-4 rounded-full bg-card/95 px-3 py-1 text-xs font-bold text-foreground shadow-2xs">
+              <span className="absolute top-3.5 right-3.5 rounded-full border border-border bg-card/95 px-3 py-1 text-xs font-bold text-foreground shadow-2xs backdrop-blur sm:top-4 sm:right-4">
                 {product.brand}
                 {brandOrigin ? ` · ${brandOrigin}` : ''}
               </span>
@@ -197,7 +201,7 @@ function ProductDetailBody({ product }: { product: Product }) {
             <ul className="grid grid-cols-1 gap-2.5 border-t border-border pt-4 sm:grid-cols-3" aria-label="Cam kết dịch vụ">
               <li className="flex items-center gap-2 text-xs font-semibold text-body">
                 <ShieldCheck className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                <span>Bảo hành chính hãng 24 tháng</span>
+                <span>Bảo hành chính hãng 2 năm</span>
               </li>
               <li className="flex items-center gap-2 text-xs font-semibold text-body">
                 <Truck className="size-4 shrink-0 text-primary" aria-hidden="true" />
@@ -212,12 +216,14 @@ function ProductDetailBody({ product }: { product: Product }) {
 
           <div className="flex flex-col gap-5">
             <div>
-              <h1 className="text-xl leading-snug font-extrabold text-foreground sm:text-2xl">{product.name}</h1>
+              <h1 className="text-xl leading-snug font-extrabold tracking-tight text-balance text-foreground sm:text-2xl">
+                {product.name}
+              </h1>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span className="tabular rounded bg-secondary px-2 py-0.5 font-mono font-semibold text-foreground">
                   {product.sku}
                 </span>
-                {category && <span>· {category.label}</span>}
+                {category && <span className="font-medium text-body">· {category.label}</span>}
                 {reviews.length > 0 && (
                   <a href="#reviews" className="inline-flex items-center gap-1 font-semibold text-amber-700 hover:underline">
                     · <Star className="size-3.5 fill-amber-500 text-amber-500" aria-hidden="true" />
@@ -228,27 +234,36 @@ function ProductDetailBody({ product }: { product: Product }) {
               </div>
             </div>
 
-            <div className="rounded-xl bg-primary/5 p-4">
+            <div className="rounded-xl border border-primary/15 bg-gradient-to-r from-primary/[0.06] via-secondary/50 to-card p-4">
               <div className="flex flex-wrap items-baseline gap-3">
-                <span className="tabular text-3xl font-extrabold tracking-tight text-price">{formatVND(product.price)}</span>
+                <span className="tabular text-2xl font-extrabold tracking-tight text-price sm:text-3xl">
+                  {formatVND(product.price)}
+                </span>
                 {product.listPrice > product.price && (
                   <span className="tabular text-sm font-medium text-muted-foreground line-through">
                     {formatVND(product.listPrice)}
                   </span>
                 )}
-                <span className="rounded-md bg-accent/20 px-2 py-0.5 text-[11px] font-bold text-amber-800">Trả góp 0%</span>
               </div>
-              {savedAmount > 0 && (
-                <p className="tabular mt-1 text-xs font-semibold text-success-ink">Tiết kiệm {formatVND(savedAmount)}</p>
-              )}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {savedAmount > 0 && (
+                  <span className="tabular rounded-md bg-success-soft px-2 py-0.5 text-xs font-bold text-success-ink">
+                    Tiết kiệm {formatVND(savedAmount)}
+                  </span>
+                )}
+                <span className="rounded-md bg-accent/20 px-2 py-0.5 text-xs font-bold text-amber-800">Trả góp 0%</span>
+              </div>
             </div>
 
             {product.specs.length > 0 && (
               <div>
                 <p className="text-xs font-bold text-body">Thông số nổi bật</p>
-                <ul className="mt-2 flex flex-wrap gap-1.5">
+                <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Thông số nổi bật">
                   {product.specs.map((spec) => (
-                    <li key={spec} className="rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                    <li
+                      key={spec}
+                      className="rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-1 text-xs font-semibold text-primary-deep"
+                    >
                       {spec}
                     </li>
                   ))}
@@ -257,7 +272,7 @@ function ProductDetailBody({ product }: { product: Product }) {
             )}
 
             <fieldset>
-              <legend className="text-xs font-bold text-body">Siêu thị còn hàng</legend>
+              <legend className="text-xs font-bold text-body">Siêu thị xuất kho</legend>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {BRANCHES.map((b) => {
                   const stock = product.stock[b.id] ?? 0
@@ -266,22 +281,33 @@ function ProductDetailBody({ product }: { product: Product }) {
                     <button
                       key={b.id}
                       type="button"
+                      aria-pressed={active}
                       onClick={() => selectBranch(b.id)}
                       className={cn(
-                        'flex flex-col items-start gap-1 rounded-xl border p-3 text-left text-xs transition-colors',
-                        active ? 'border-primary bg-primary/5' : 'border-border bg-card hover:bg-secondary/40',
+                        'flex flex-col items-start gap-1 rounded-xl border p-3 text-left text-xs transition-all',
+                        active
+                          ? 'border-primary bg-primary/[0.05] ring-2 ring-primary/15'
+                          : 'border-border bg-card hover:border-primary/40 hover:bg-secondary/35',
                       )}
                     >
                       <span className="flex w-full items-center justify-between gap-2 font-bold text-foreground">
                         <span className="flex items-center gap-1.5 truncate">
-                          <MapPin className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-                          {b.district}
+                          <MapPin
+                            className={cn('size-3.5 shrink-0', active ? 'text-primary' : 'text-muted-foreground')}
+                            aria-hidden="true"
+                          />
+                          {b.name}
                         </span>
-                        <span className={cn('tabular shrink-0 font-bold', stock > 0 ? 'text-success-ink' : 'text-danger-ink')}>
+                        <span
+                          className={cn(
+                            'tabular shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold',
+                            stock > 0 ? 'bg-success-soft text-success-ink' : 'bg-danger-soft text-danger-ink',
+                          )}
+                        >
                           {stock > 0 ? `Còn ${stock}` : 'Hết hàng'}
                         </span>
                       </span>
-                      <span className="line-clamp-1 text-[11px] text-muted-foreground">{b.name}</span>
+                      <span className="line-clamp-1 pl-5 text-[11px] text-muted-foreground">{b.address}</span>
                     </button>
                   )
                 })}
@@ -291,119 +317,165 @@ function ProductDetailBody({ product }: { product: Product }) {
               )}
             </fieldset>
 
-            <div className="flex flex-wrap items-center gap-4">
-              <span className="text-xs font-bold text-body">Số lượng</span>
-              <div className="flex h-10 items-center rounded-lg border border-border bg-card">
+            <div className="mt-auto space-y-4 border-t border-border pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label htmlFor="product-qty" className="text-xs font-bold text-body">
+                  Số lượng mua
+                </label>
+                <div className="flex h-10 items-center rounded-xl border border-border bg-card">
+                  <button
+                    type="button"
+                    disabled={!available || selectedQuantity <= 1}
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    aria-label="Giảm số lượng"
+                    className="flex size-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                  >
+                    <Minus className="size-4" aria-hidden="true" />
+                  </button>
+                  <input
+                    id="product-qty"
+                    type="number"
+                    min="1"
+                    max={Math.max(available, 1)}
+                    step="1"
+                    value={selectedQuantity}
+                    disabled={!available}
+                    onChange={(event) =>
+                      setQuantity(
+                        Math.max(1, Math.min(available, Math.floor(Number(event.target.value)) || 1)),
+                      )
+                    }
+                    className="tabular w-12 bg-transparent text-center text-sm font-extrabold text-foreground [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={!available || selectedQuantity >= available}
+                    onClick={() => setQuantity((q) => Math.min(available, q + 1))}
+                    aria-label="Tăng số lượng"
+                    className="flex size-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                  >
+                    <Plus className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
-                  disabled={!available || selectedQuantity <= 1}
-                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  aria-label="Giảm số lượng"
-                  className="flex size-10 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  disabled={!available}
+                  onClick={() => add(false)}
+                  className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-primary bg-card text-sm font-extrabold text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Minus className="size-4" />
+                  <ShoppingBag className="size-4" aria-hidden="true" />
+                  Thêm vào giỏ
                 </button>
-                <span className="tabular w-10 text-center text-sm font-extrabold text-foreground">{selectedQuantity}</span>
                 <button
                   type="button"
-                  disabled={!available || selectedQuantity >= available}
-                  onClick={() => setQuantity((q) => Math.min(available, q + 1))}
-                  aria-label="Tăng số lượng"
-                  className="flex size-10 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  disabled={!available}
+                  onClick={() => add(true)}
+                  className="flex h-12 items-center justify-center rounded-xl bg-primary text-sm font-extrabold text-primary-foreground shadow-2xs transition-colors hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Plus className="size-4" />
+                  Mua ngay
                 </button>
               </div>
-            </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                disabled={!available}
-                onClick={() => add(false)}
-                className="flex h-11 items-center justify-center gap-2 rounded-xl border-2 border-primary text-sm font-bold text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <ShoppingBag className="size-4" aria-hidden="true" />
-                Thêm vào giỏ
-              </button>
-              <button
-                type="button"
-                disabled={!available}
-                onClick={() => add(true)}
-                className="flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Mua ngay
-              </button>
+              {!available && (
+                <p className="rounded-lg bg-danger-soft px-3 py-2 text-xs font-semibold text-danger-ink">
+                  Chi nhánh này tạm hết hàng hoặc bạn đã thêm tối đa vào giỏ.
+                </p>
+              )}
+              {notice && (
+                <p
+                  role="status"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-success/25 bg-success-soft px-4 py-2.5 text-xs font-semibold text-success-ink"
+                >
+                  <span>{notice}</span>
+                  <Link className="shrink-0 font-extrabold underline hover:no-underline" href="/cart">
+                    Xem giỏ hàng →
+                  </Link>
+                </p>
+              )}
             </div>
-
-            {!available && <p className="text-xs text-danger-ink">Chi nhánh này tạm hết hàng hoặc bạn đã thêm tối đa vào giỏ.</p>}
-            {notice && (
-              <p role="status" className="text-sm font-medium text-success-ink">
-                {notice}{' '}
-                <Link className="font-bold underline" href="/cart">
-                  Xem giỏ hàng
-                </Link>
-              </p>
-            )}
           </div>
         </section>
 
-        <section id="reviews" className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-2xs lg:p-8">
+        <section id="reviews" className="mt-6 scroll-mt-20 rounded-2xl border border-border bg-card p-5 shadow-2xs lg:p-8">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-4">
-            <h2 className="text-lg font-bold">
-              Đánh giá từ khách hàng <span className="tabular text-sm text-muted-foreground">({reviews.length})</span>
+            <h2 className="text-lg font-extrabold text-foreground">
+              Đánh giá từ khách hàng <span className="tabular text-sm font-semibold text-muted-foreground">({reviews.length})</span>
             </h2>
             {reviews.length > 0 && (
-              <p className="flex items-center gap-1.5 text-sm font-bold text-amber-600">
-                <Star className="size-4 fill-current" aria-hidden="true" />
+              <p className="flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1 text-sm font-extrabold text-amber-700">
+                <Star className="size-4 fill-amber-500 text-amber-500" aria-hidden="true" />
                 <span className="tabular">{avgRating.toFixed(1)} / 5</span>
               </p>
             )}
           </div>
 
-          <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div aria-live="polite">
               {reviewsLoading ? (
                 <p className="text-sm text-muted-foreground">Đang tải đánh giá...</p>
               ) : reviewError ? (
-                <p className="text-sm text-danger-ink">{reviewError}</p>
+                <p className="rounded-lg bg-danger-soft p-3 text-sm font-medium text-danger-ink">{reviewError}</p>
               ) : reviews.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Chưa có đánh giá nào. Hãy là người đầu tiên nhận xét sản phẩm này.</p>
+                <div className="rounded-xl border border-dashed border-border bg-secondary/25 p-8 text-center">
+                  <p className="text-sm font-bold text-foreground">Chưa có đánh giá cho sản phẩm này</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Hãy là người đầu tiên chia sẻ trải nghiệm sử dụng sản phẩm ở khung bên cạnh.
+                  </p>
+                </div>
               ) : (
                 <ul className="divide-y divide-border">
                   {reviews.map((review) => (
                     <li key={review.id} className="py-4 first:pt-0">
-                      <div className="flex items-center justify-between gap-4 text-sm">
-                        <span className="font-bold text-foreground">{review.customer.fullName}</span>
-                        <time className="tabular text-xs text-muted-foreground" dateTime={review.reviewDate}>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            aria-hidden="true"
+                            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-extrabold text-primary"
+                          >
+                            {review.customer.fullName.trim().charAt(0).toUpperCase()}
+                          </span>
+                          <div>
+                            <span className="block text-sm font-bold text-foreground">{review.customer.fullName}</span>
+                            <div className="mt-0.5 flex" aria-label={`${review.rating} trên 5 sao`}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  aria-hidden="true"
+                                  key={star}
+                                  className={cn(
+                                    'size-3.5',
+                                    star <= review.rating ? 'fill-amber-500 text-amber-500' : 'text-slate-300',
+                                  )}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <time className="tabular text-xs font-medium text-muted-foreground" dateTime={review.reviewDate}>
                           {new Date(review.reviewDate).toLocaleDateString('vi-VN')}
                         </time>
                       </div>
-                      <div className="mt-1 flex text-amber-500" aria-label={`${review.rating} trên 5 sao`}>
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            aria-hidden="true"
-                            key={star}
-                            className={cn('size-3.5', star <= review.rating && 'fill-current')}
-                          />
-                        ))}
-                      </div>
-                      {review.comment && <p className="mt-2 text-sm text-body">{review.comment}</p>}
+                      {review.comment && <p className="mt-2.5 text-sm leading-relaxed text-body">{review.comment}</p>}
                     </li>
                   ))}
                 </ul>
               )}
             </div>
 
-            <form onSubmit={submitReview} className="space-y-3 border-t border-border pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
-              <h3 className="text-base font-bold">Gửi đánh giá của bạn</h3>
+            <form onSubmit={submitReview} className="space-y-3 rounded-xl border border-border bg-secondary/25 p-5">
+              <h3 className="text-base font-extrabold text-foreground">Gửi đánh giá của bạn</h3>
               <fieldset>
                 <legend className="text-xs font-semibold text-body">
-                  Mức độ hài lòng: <span className="text-primary">{RATING_LABELS[rating]}</span>
+                  Mức độ hài lòng: <span className="font-bold text-amber-700">{RATING_LABELS[rating]}</span>
                 </legend>
                 <div className="mt-1.5 flex gap-1">
                   {[1, 2, 3, 4, 5].map((star) => (
-                    <label key={star} className="cursor-pointer rounded p-1 focus-within:ring-2 focus-within:ring-primary">
+                    <label
+                      key={star}
+                      className="cursor-pointer rounded p-1 transition-transform hover:scale-110 focus-within:ring-2 focus-within:ring-primary"
+                    >
                       <input
                         className="sr-only"
                         type="radio"
@@ -415,7 +487,7 @@ function ProductDetailBody({ product }: { product: Product }) {
                       <span className="sr-only">{star} sao</span>
                       <Star
                         aria-hidden="true"
-                        className={cn('size-5 text-amber-500', star <= rating && 'fill-current')}
+                        className={cn('size-5', star <= rating ? 'fill-amber-500 text-amber-500' : 'text-slate-300')}
                       />
                     </label>
                   ))}
