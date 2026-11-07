@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:8088/api/v1'
+const BASE = process.env.NEXT_PUBLIC_API_BASE || '/api/v1'
 
 export const api = {
   /* ── Products ── */
