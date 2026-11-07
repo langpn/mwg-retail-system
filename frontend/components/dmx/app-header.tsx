@@ -325,6 +325,8 @@ function AccountDropdown() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
+  const isAdmin = customer?.role === 'ADMIN'
+
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
@@ -344,21 +346,33 @@ function AccountDropdown() {
           'flex h-10 items-center gap-2 rounded-full border px-3 text-xs font-bold transition-all',
           open
             ? 'border-primary bg-primary/10 text-primary'
-            : customer
-              ? 'border-emerald-500/40 bg-emerald-50/60 text-emerald-900 hover:border-emerald-500'
-              : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-secondary',
+            : isAdmin
+              ? 'border-amber-500/50 bg-amber-50 text-amber-900 hover:border-amber-500'
+              : customer
+                ? 'border-emerald-500/40 bg-emerald-50/60 text-emerald-900 hover:border-emerald-500'
+                : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-secondary',
         )}
       >
         <span
           className={cn(
             'flex size-7 items-center justify-center rounded-full text-xs font-bold',
-            customer ? 'bg-emerald-600 text-white' : 'bg-primary/10 text-primary',
+            isAdmin
+              ? 'bg-amber-600 text-white'
+              : customer
+                ? 'bg-emerald-600 text-white'
+                : 'bg-primary/10 text-primary',
           )}
         >
-          {customer ? customer.fullName.charAt(0).toUpperCase() : <User className="size-4" aria-hidden="true" />}
+          {isAdmin ? (
+            <Shield className="size-4" aria-hidden="true" />
+          ) : customer ? (
+            customer.fullName.charAt(0).toUpperCase()
+          ) : (
+            <User className="size-4" aria-hidden="true" />
+          )}
         </span>
         <span className="hidden max-w-[120px] truncate sm:inline">
-          {customer ? customer.fullName : 'Tài khoản'}
+          {isAdmin ? 'Quản trị viên' : customer ? customer.fullName : 'Tài khoản'}
         </span>
         <ChevronDown className={cn('size-3.5 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
@@ -370,39 +384,92 @@ function AccountDropdown() {
         >
           {customer ? (
             <>
-              <div className="mb-1 rounded-lg border border-emerald-200/60 bg-emerald-50/70 px-3 py-2.5">
-                <p className="truncate text-xs font-extrabold text-foreground">{customer.fullName}</p>
-                <p className="text-[11px] font-medium text-muted-foreground">SĐT: {customer.phone}</p>
-                {customer.email && <p className="truncate text-[11px] text-muted-foreground">{customer.email}</p>}
-                <span className="mt-1.5 inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                  Thành viên CSDL MySQL
-                </span>
-              </div>
+              {isAdmin ? (
+                /* Giao diện dành riêng cho Admin */
+                <>
+                  <div className="mb-1 rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2.5">
+                    <div className="flex items-center justify-between">
+                      <p className="truncate text-xs font-extrabold text-amber-950">{customer.fullName}</p>
+                      <span className="rounded-md bg-amber-200 px-1.5 py-0.5 text-[10px] font-black text-amber-900">
+                        ADMIN
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-medium text-amber-800">SĐT Quản trị: {customer.phone}</p>
+                  </div>
 
-              <div className="py-1">
-                <Link
-                  href="/cart"
-                  onClick={() => setOpen(false)}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
-                >
-                  <ShoppingBag className="size-4 text-muted-foreground" />
-                  Giỏ hàng của tôi
-                </Link>
+                  <div className="py-1">
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setOpen(false)}
+                      className="flex w-full items-center gap-2.5 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-500/20"
+                    >
+                      <Shield className="size-4 text-amber-600" />
+                      Bảng điều khiển Quản trị (Admin)
+                    </Link>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    logoutCustomer()
-                    setOpen(false)
-                  }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50"
-                >
-                  <LogOut className="size-4 text-rose-500" />
-                  Đăng xuất tài khoản
-                </button>
-              </div>
+                    <Link
+                      href="/cart"
+                      onClick={() => setOpen(false)}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+                    >
+                      <ShoppingBag className="size-4 text-muted-foreground" />
+                      Giỏ hàng của tôi
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        logoutCustomer()
+                        setOpen(false)
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50"
+                    >
+                      <LogOut className="size-4 text-rose-500" />
+                      Đăng xuất quản trị
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Giao diện dành cho Khách hàng thông thường */
+                <>
+                  <div className="mb-1 rounded-lg border border-border bg-secondary/40 px-3 py-2.5">
+                    <div className="flex items-center justify-between">
+                      <p className="truncate text-xs font-extrabold text-foreground">{customer.fullName}</p>
+                      <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                        Khách hàng thân thiết
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-medium text-muted-foreground">SĐT: {customer.phone}</p>
+                    {customer.email && <p className="truncate text-[11px] text-muted-foreground">{customer.email}</p>}
+                  </div>
+
+                  <div className="py-1">
+                    <Link
+                      href="/cart"
+                      onClick={() => setOpen(false)}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+                    >
+                      <ShoppingBag className="size-4 text-muted-foreground" />
+                      Giỏ hàng của tôi
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        logoutCustomer()
+                        setOpen(false)
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50"
+                    >
+                      <LogOut className="size-4 text-rose-500" />
+                      Đăng xuất tài khoản
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           ) : (
+            /* Giao diện khi chưa đăng nhập */
             <>
               <div className="border-b border-border px-3 py-2.5">
                 <p className="text-xs font-bold text-foreground">Chào mừng quý khách</p>
@@ -430,20 +497,6 @@ function AccountDropdown() {
               </div>
             </>
           )}
-
-          <div className="mt-1 border-t border-border pt-1.5">
-            <p className="px-3 py-1 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-              Cổng Quản Trị Hệ Thống
-            </p>
-            <Link
-              href="/dashboard"
-              onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-500/10"
-            >
-              <Shield className="size-4 text-amber-600" />
-              Bảng điều khiển Quản trị (Admin)
-            </Link>
-          </div>
         </div>
       )}
     </div>

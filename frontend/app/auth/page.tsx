@@ -57,6 +57,12 @@ function AuthContent() {
       return
     }
 
+    // Đăng nhập nhanh Admin nếu gõ "admin" hoặc SĐT 0900000000
+    if (identifier.toLowerCase() === 'admin' || identifier === '0900000000') {
+      quickAdminLogin()
+      return
+    }
+
     setSubmitting(true)
     try {
       // 1. Tìm trực tiếp theo số điện thoại qua API backend
@@ -83,6 +89,7 @@ function AuthContent() {
           phone: foundCustomer.phone,
           email: foundCustomer.email,
           address: foundCustomer.address,
+          role: 'CUSTOMER',
         })
         setNotification(`Đăng nhập thành công! Chào mừng ${foundCustomer.fullName}.`)
         setTimeout(() => {
@@ -144,6 +151,7 @@ function AuthContent() {
         phone: created.phone,
         email: created.email,
         address: created.address,
+        role: 'CUSTOMER',
       })
 
       setNotification(`Đăng ký thành viên thành công và đã lưu vào CSDL MySQL! Chào mừng ${created.fullName}.`)
@@ -170,6 +178,7 @@ function AuthContent() {
           phone: found.phone,
           email: found.email,
           address: found.address,
+          role: 'CUSTOMER',
         })
         setNotification(`Đăng nhập thành công với tài khoản mẫu: ${found.fullName}!`)
         setTimeout(() => router.push('/'), 700)
@@ -184,13 +193,22 @@ function AuthContent() {
       phone: '0901234567',
       email: 'an.nguyen@gmail.com',
       address: 'Số 10 Võ Văn Ngân, TP. Thủ Đức',
+      role: 'CUSTOMER',
     })
     setNotification('Đăng nhập thành công với tài khoản mẫu Nguyễn Văn An!')
     setTimeout(() => router.push('/'), 700)
   }
 
   function quickAdminLogin() {
-    setNotification('Xác thực quyền Quản trị viên! Đang mở Dashboard...')
+    loginCustomer({
+      id: 999,
+      fullName: 'Quản trị viên hệ thống',
+      phone: '0900000000',
+      email: 'admin@dmx.mwg.vn',
+      address: 'Trụ sở Điện Máy Xanh',
+      role: 'ADMIN',
+    })
+    setNotification('Đăng nhập thành công với Quyền Quản trị viên! Đang mở Dashboard...')
     setTimeout(() => {
       router.push('/dashboard')
     }, 700)

@@ -29,6 +29,7 @@ export interface CustomerProfile {
   phone: string
   email?: string
   address?: string
+  role?: 'CUSTOMER' | 'ADMIN'
 }
 
 export interface ApiLogEntry {
