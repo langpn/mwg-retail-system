@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   RefreshCw,
   Plus,
+  Minus,
   Pencil,
   Trash2,
   ShoppingBag,
@@ -20,11 +21,12 @@ import {
   Lock,
   Store,
   LogOut,
-  Home,
   ExternalLink,
   Search,
   ChevronLeft,
   ChevronRight,
+  Save,
+  Shield,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -39,6 +41,7 @@ import {
   type BackendProduct,
   type BackendCategory,
   type BackendBrand,
+  type BackendBranch,
   type BackendCustomer,
   type BackendPromotion,
   type BackendReview,
@@ -48,11 +51,12 @@ import {
 import { ADMIN_PROFILE, CUSTOMER_STORAGE_KEY, isValidAdminPin } from '@/lib/auth-config'
 
 /* ── Types ── */
-type Section = 'overview' | 'products' | 'orders' | 'customers' | 'promotions' | 'reviews'
+type Section = 'overview' | 'products' | 'inventory' | 'orders' | 'customers' | 'promotions' | 'reviews'
 
 const NAV: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'overview', label: 'Tổng quan', icon: <LayoutDashboard className="size-4" /> },
   { id: 'products', label: 'Sản phẩm', icon: <Package className="size-4" /> },
+  { id: 'inventory', label: 'Tồn kho', icon: <Store className="size-4" /> },
   { id: 'orders', label: 'Đơn hàng', icon: <ClipboardList className="size-4" /> },
   { id: 'customers', label: 'Khách hàng', icon: <Users className="size-4" /> },
   { id: 'promotions', label: 'Khuyến mãi', icon: <Tag className="size-4" /> },
@@ -239,8 +243,8 @@ export function DashboardApp() {
             <div className="h-4 w-px bg-border" />
 
             <div className="flex items-center gap-2">
-              <span className="flex size-7 items-center justify-center rounded-full bg-amber-500/15 text-xs font-bold text-amber-800">
-                👑
+              <span className="flex size-7 items-center justify-center rounded-full bg-amber-500/15 text-amber-800">
+                <Shield className="size-4" aria-hidden="true" />
               </span>
               <span className="text-xs font-bold text-foreground">Quản trị viên</span>
             </div>
@@ -266,6 +270,7 @@ export function DashboardApp() {
         <main className="flex-1 overflow-auto p-6">
           {section === 'overview' && <OverviewSection />}
           {section === 'products' && <ProductsSection />}
+          {section === 'inventory' && <InventorySection />}
           {section === 'orders' && <OrdersSection />}
           {section === 'customers' && <CustomersSection />}
           {section === 'promotions' && <PromotionsSection />}
@@ -820,6 +825,224 @@ function ProductForm({
 }
 
 /* ══════════════════════════════════════════
+   INVENTORY Management (per-branch stock)
+   ══════════════════════════════════════════ */
+function InventorySection() {
+  const [products, setProducts] = useState<BackendProduct[]>([])
+  const [branches, setBranches] = useState<BackendBranch[]>([])
+  const [stock, setStock] = useState<Record<string, number>>({})
+  const [branchId, setBranchId] = useState<number | null>(null)
+  const [keyword, setKeyword] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [productList, branchList, matrix] = await Promise.all([
+        productsApi.list(),
+        inventoryApi.branches(),
+        inventoryApi.stockMatrix(),
+      ])
+      const next: Record<string, number> = {}
+      for (const entry of matrix) next[`${entry.productId}:${entry.branchId}`] = entry.quantity
+      setProducts(productList)
+      setBranches(branchList)
+      setStock(next)
+      setBranchId((current) => current ?? branchList[0]?.id ?? null)
+    } catch {
+      /* offline */
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const didLoad = useRef(false)
+  useEffect(() => {
+    if (didLoad.current) return
+    didLoad.current = true
+    load()
+  }, [load])
+
+  const q = keyword.trim().toLowerCase()
+  const visible = q
+    ? products.filter((p) => `${p.name} ${p.sku}`.toLowerCase().includes(q))
+    : products
+
+  async function save(productId: number, quantity: number) {
+    if (branchId === null) return
+    await inventoryApi.update({ productId, branchId, quantity })
+    setStock((prev) => ({ ...prev, [`${productId}:${branchId}`]: quantity }))
+  }
+
+  return (
+    <div>
+      <SectionHeader title="Quản lý tồn kho" count={products.length} onRefresh={load} />
+
+      {/* Toolbar: search + branch filter tabs */}
+      <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border bg-card px-3 py-2.5">
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="Tìm theo tên, SKU…"
+            aria-label="Tìm kiếm sản phẩm trong kho"
+            className="h-8 w-56 rounded-lg border border-border bg-background pr-2 pl-8 text-xs focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+          />
+        </div>
+
+        <div role="group" aria-label="Lọc theo chi nhánh" className="flex flex-wrap gap-1">
+          {branches.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              aria-pressed={branchId === b.id}
+              onClick={() => setBranchId(b.id)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                branchId === b.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {b.branchName} · {b.district}
+            </button>
+          ))}
+        </div>
+
+        <span className="text-xs text-muted-foreground">
+          Hiển thị <strong className="tabular font-bold text-foreground">{visible.length}</strong> /{' '}
+          <strong className="tabular font-bold text-foreground">{products.length}</strong> sản phẩm
+        </span>
+      </div>
+
+      <div className="overflow-auto rounded-xl border bg-card">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
+              <th className="px-3 py-2 text-left">SKU</th>
+              <th className="px-3 py-2 text-left">Tên sản phẩm</th>
+              <th className="px-3 py-2 text-right">Giá</th>
+              <th className="px-3 py-2 text-left">Tồn kho tại chi nhánh</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((p) => (
+              <InventoryRow
+                key={`${p.id}-${branchId}`}
+                product={p}
+                quantity={branchId === null ? 0 : (stock[`${p.id}:${branchId}`] ?? 0)}
+                disabled={branchId === null}
+                onSave={(quantity) => save(p.id, quantity)}
+              />
+            ))}
+            {visible.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
+                  {loading ? 'Đang tải…' : 'Không tìm thấy sản phẩm phù hợp'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function InventoryRow({
+  product,
+  quantity,
+  disabled,
+  onSave,
+}: {
+  product: BackendProduct
+  quantity: number
+  disabled: boolean
+  onSave: (quantity: number) => Promise<void>
+}) {
+  const [draft, setDraft] = useState(quantity)
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dirty = draft !== quantity
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current)
+  }, [])
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!dirty || status === 'saving') return
+    setStatus('saving')
+    try {
+      await onSave(draft)
+      setStatus('saved')
+      timer.current = setTimeout(() => setStatus('idle'), 1600)
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  return (
+    <tr className="border-b last:border-0 hover:bg-muted/30">
+      <td className="tabular px-3 py-2 font-mono text-xs">{product.sku}</td>
+      <td className="max-w-[280px] truncate px-3 py-2">{product.name}</td>
+      <td className="tabular px-3 py-2 text-right font-medium text-price">{fmtVND(product.price)}</td>
+      <td className="px-3 py-2">
+        <form onSubmit={submit} className="flex items-center gap-2">
+          <div className="flex h-8 items-center rounded-lg border border-border bg-card">
+            <button
+              type="button"
+              onClick={() => setDraft((d) => Math.max(0, d - 1))}
+              disabled={disabled}
+              className="flex h-full w-7 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+              aria-label={`Giảm tồn kho ${product.sku}`}
+            >
+              <Minus className="size-3.5" aria-hidden="true" />
+            </button>
+            <label htmlFor={`stock-${product.id}`} className="sr-only">
+              Số lượng tồn kho cho {product.sku}
+            </label>
+            <input
+              id={`stock-${product.id}`}
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={999}
+              value={draft}
+              disabled={disabled}
+              onChange={(e) => setDraft(Math.max(0, Math.min(999, Number(e.target.value) || 0)))}
+              className="tabular h-full w-12 border-x border-border bg-transparent text-center text-sm font-bold text-foreground [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <button
+              type="button"
+              onClick={() => setDraft((d) => Math.min(999, d + 1))}
+              disabled={disabled}
+              className="flex h-full w-7 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40"
+              aria-label={`Tăng tồn kho ${product.sku}`}
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+            </button>
+          </div>
+          <button
+            type="submit"
+            disabled={!dirty || disabled || status === 'saving'}
+            className="flex h-8 items-center gap-1 rounded-lg bg-primary px-2.5 text-[11px] font-bold text-primary-foreground transition-colors hover:bg-primary-deep disabled:bg-secondary disabled:text-muted-foreground"
+          >
+            <Save className="size-3.5" aria-hidden="true" />
+            Lưu
+          </button>
+          <span aria-live="polite" className="w-14 shrink-0 text-[11px] font-semibold">
+            {status === 'saving' && <span className="text-muted-foreground">Đang lưu…</span>}
+            {status === 'saved' && <span className="text-emerald-700">Đã lưu</span>}
+            {status === 'error' && <span className="text-rose-600">Lỗi lưu</span>}
+          </span>
+        </form>
+      </td>
+    </tr>
+  )
+}
+
+/* ══════════════════════════════════════════
    ORDERS Management
    ══════════════════════════════════════════ */
 function OrdersSection() {
@@ -1214,7 +1437,15 @@ function ReviewsSection() {
                 <td className="px-3 py-2 text-xs max-w-[180px] truncate">{r.product?.name ?? `Product #${r.product?.id}`}</td>
                 <td className="px-3 py-2 text-xs">{r.customer?.fullName ?? '—'}</td>
                 <td className="px-3 py-2 text-center">
-                  <span className="text-yellow-500">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                  <span className="inline-flex text-amber-600" aria-label={`${r.rating} trên 5 sao`}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        aria-hidden="true"
+                        className={`size-3.5 ${star <= r.rating ? 'fill-current' : 'text-muted-foreground'}`}
+                      />
+                    ))}
+                  </span>
                 </td>
                 <td className="px-3 py-2 text-xs max-w-[250px] truncate">{r.comment ?? '—'}</td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{fmtDate(r.reviewDate)}</td>
@@ -1278,9 +1509,11 @@ function ReviewForm({
                   key={n}
                   type="button"
                   onClick={() => setRating(n)}
-                  className={`text-xl ${n <= rating ? 'text-yellow-500' : 'text-gray-300'}`}
+                  aria-label={`${n} sao`}
+                  aria-pressed={n <= rating}
+                  className={`rounded p-0.5 transition-colors ${n <= rating ? 'text-amber-600' : 'text-muted-foreground hover:text-amber-600'}`}
                 >
-                  ★
+                  <Star aria-hidden="true" className={`size-5 ${n <= rating ? 'fill-current' : ''}`} />
                 </button>
               ))}
             </div>

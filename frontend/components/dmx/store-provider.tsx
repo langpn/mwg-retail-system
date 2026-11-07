@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  BRANCHES,
   matchesBudget,
   type BranchId,
   type BrandId,
@@ -13,15 +14,14 @@ import {
 import { api, type ProductPageParams } from '@/lib/api'
 import {
   mapBackendProduct,
+  mapBackendOrder,
   applyStockMatrix,
   catalogAdapter,
-  keyToNumericId,
   CATEGORY_ID_TO_CODE,
 } from '@/lib/catalog'
 import { submitOrder, type OrderItemInput } from '@/lib/order-service'
 import { CUSTOMER_STORAGE_KEY } from '@/lib/auth-config'
 
-export type ViewTab = 'catalog' | 'inventory'
 export type SortOption = 'default' | 'price-asc' | 'price-desc' | 'discount'
 
 export interface CartItem {
@@ -61,8 +61,6 @@ interface StoreValue {
   query: string
   setQuery: (q: string) => void
   resetFilters: () => void
-  tab: ViewTab
-  setTab: (tab: ViewTab) => void
   sort: SortOption
   setSort: (s: SortOption) => void
   page: number
@@ -73,9 +71,9 @@ interface StoreValue {
   pageLoading: boolean
   setPage: (p: number) => void
   setPageSize: (s: number) => void
-  updateStock: (sku: string, branchId: BranchId, quantity: number) => void
   backendConnected: boolean | null
   reloadFromBackend: () => void
+  refreshOrders: () => Promise<void>
   cart: CartItem[]
   addToCart: (product: Product, quantity?: number) => void
   updateCartQty: (sku: string, quantity: number) => void
@@ -107,7 +105,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [brands, setBrands] = useState<BrandId[]>([])
   const [budget, setBudget] = useState<BudgetId>('any')
   const [query, setQuery] = useState('')
-  const [tab, setTab] = useState<ViewTab>('catalog')
   const [sort, setSort] = useState<SortOption>('default')
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null)
 
@@ -171,22 +168,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [products, persistCart])
 
   const addToCart = useCallback((product: Product, quantity = 1) => {
-    // Số lượng tối đa = tồn kho thật của chi nhánh đang chọn
-    const stock = product.stock[branchId] ?? 0
-    if (stock <= 0) return
+    // Chi nhánh hiện tại phải đủ hàng, nếu không thì chuyển sang chi nhánh còn hàng.
+    const currentBranchStock = product.stock[branchId] ?? 0
+    let targetBranch = branchId
+    if (currentBranchStock < quantity) {
+      const availableBranch =
+        BRANCHES.find((b) => (product.stock[b.id] ?? 0) >= quantity) ??
+        BRANCHES.find((b) => (product.stock[b.id] ?? 0) > 0)
+      if (!availableBranch) return // Hết hàng toàn hệ thống
+      targetBranch = availableBranch.id
+      setBranchId(targetBranch)
+    }
+    const maxStock = product.stock[targetBranch] ?? 0
+    if (maxStock <= 0) return
+
     setCart((prev) => {
       const existing = prev.find((item) => item.product.sku === product.sku)
       const updated = existing
         ? prev.map((item) =>
             item.product.sku === product.sku
-              ? { ...item, quantity: Math.min(stock, item.quantity + quantity) }
+              ? { ...item, quantity: Math.min(maxStock, item.quantity + quantity) }
               : item,
           )
-        : [...prev, { product, quantity: Math.min(stock, quantity) }]
+        : [...prev, { product, quantity: Math.min(maxStock, quantity) }]
       persistCart(updated)
       return updated
     })
   }, [persistCart, branchId])
+
+  /* Giữ giỏ hàng luôn khả thi: nếu chi nhánh đang chọn không đủ hàng cho mọi món,
+     tự chuyển sang chi nhánh đáp ứng được toàn bộ giỏ. */
+  useEffect(() => {
+    if (cart.length === 0) return
+    const shortAtCurrent = cart.some((item) => (item.product.stock[branchId] ?? 0) < item.quantity)
+    if (!shortAtCurrent) return
+    const betterBranch = BRANCHES.find((b) =>
+      cart.every((item) => (item.product.stock[b.id] ?? 0) >= item.quantity),
+    )
+    if (betterBranch) setBranchId(betterBranch.id)
+  }, [cart, branchId, products])
 
   const updateCartQty = useCallback((sku: string, quantity: number) => {
     const inCart = cart.find((item) => item.product.sku === sku)
@@ -367,28 +387,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     reloadFromBackend()
   }, [reloadFromBackend])
 
-  /* ── Update stock ── */
-  const updateStock = useCallback(
-    async (sku: string, target: BranchId, quantity: number) => {
-      const safe = Math.max(0, Math.min(999, Math.floor(quantity)))
-      const product = products.find((p) => p.sku === sku)
-
-      if (backendConnected === null) return
-      if (backendConnected) {
-        const numericBranch = keyToNumericId(target)
-        if (product?.id === undefined || numericBranch === undefined) return
-        try {
-          await api.inventory.update({ productId: product.id, branchId: numericBranch, quantity: safe })
-        } catch {
-          return
-        }
-      }
-      setProducts((prev) =>
-        prev.map((p) => (p.sku === sku ? { ...p, stock: { ...p.stock, [target]: safe } } : p)),
-      )
-    },
-    [products, backendConnected],
-  )
+  /* ── Orders refresh (does not reset connection state or reload the catalog) ── */
+  const refreshOrders = useCallback(async () => {
+    try {
+      const list = await api.orders.list()
+      setOrders(list.map((order) => mapBackendOrder(order)))
+    } catch {}
+  }, [])
 
   /* ── Refresh stock from stock-matrix after a successful order ── */
   const refreshStockMatrix = useCallback(async () => {
@@ -435,8 +440,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       query,
       setQuery,
       resetFilters,
-      tab,
-      setTab,
       sort,
       setSort,
       page,
@@ -447,9 +450,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       pageLoading,
       setPage,
       setPageSize,
-      updateStock,
       backendConnected,
       reloadFromBackend,
+      refreshOrders,
       cart,
       addToCart,
       updateCartQty,
@@ -464,11 +467,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       products, filteredProducts, orders, branchId, category, brands, budget, query,
-      tab, sort, page, pageSize, pagedProducts, totalProducts, totalPages, pageLoading,
+      sort, page, pageSize, pagedProducts, totalProducts, totalPages, pageLoading,
       backendConnected, cart, cartCount, cartSubtotal, customer,
       setBranchId, setCategory, toggleBrand, setBudget, setQuery, resetFilters,
-      setTab, setSort, setPage, setPageSize, updateStock,
-      reloadFromBackend, addToCart, updateCartQty,
+      setSort, setPage, setPageSize,
+      reloadFromBackend, refreshOrders, addToCart, updateCartQty,
       removeFromCart, clearCart, placeCartOrder, loginCustomer, logoutCustomer,
     ],
   )

@@ -3,12 +3,19 @@
 import { useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, ChevronLeft, ChevronRight, Loader2, PackageSearch, Store } from 'lucide-react'
-import { BRANCHES, formatVND, getBranch, type BranchId, type Product } from '@/lib/dmx-data'
-import { useStore } from './store-provider'
+import { ArrowRight, ChevronLeft, ChevronRight, Loader2, PackageSearch } from 'lucide-react'
+import { BRANCHES, formatVND, type Product } from '@/lib/dmx-data'
+import { useStore, type SortOption } from './store-provider'
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZES = [4, 8, 12, 16]
+
+const SORT_OPTIONS: { id: SortOption; label: string }[] = [
+  { id: 'default', label: 'Nổi bật nhất' },
+  { id: 'price-asc', label: 'Giá thấp → cao' },
+  { id: 'price-desc', label: 'Giá cao → thấp' },
+  { id: 'discount', label: 'Giảm nhiều nhất' },
+]
 
 export function ProductGrid() {
   const {
@@ -21,6 +28,8 @@ export function ProductGrid() {
     setPage,
     setPageSize,
     resetFilters,
+    sort,
+    setSort,
   } = useStore()
   const gridRef = useRef<HTMLDivElement>(null)
 
@@ -35,21 +44,57 @@ export function ProductGrid() {
     scrollToGrid()
   }
 
+  const toolbar = (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm font-semibold text-body">
+        Hiển thị <span className="tabular font-extrabold text-foreground">{totalProducts}</span> sản phẩm
+      </p>
+      <div
+        role="group"
+        aria-label="Sắp xếp sản phẩm"
+        className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-card p-1"
+      >
+        {SORT_OPTIONS.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            aria-pressed={sort === opt.id}
+            onClick={() => {
+              setSort(opt.id)
+              scrollToGrid()
+            }}
+            className={cn(
+              'rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors',
+              sort === opt.id
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-body hover:bg-secondary hover:text-foreground',
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
   if (totalProducts === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card px-6 py-20 text-center">
-        <PackageSearch className="size-10 text-muted-foreground" aria-hidden="true" />
-        <p className="text-base font-bold text-foreground">Không tìm thấy sản phẩm phù hợp</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Vui lòng thử chọn danh mục, thương hiệu khác hoặc mức giá phù hợp hơn.
-        </p>
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary-deep"
-        >
-          Đặt lại bộ lọc
-        </button>
+      <div className="flex flex-col gap-4">
+        {toolbar}
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card px-6 py-20 text-center">
+          <PackageSearch className="size-10 text-muted-foreground" aria-hidden="true" />
+          <p className="text-base font-bold text-foreground">Không tìm thấy sản phẩm phù hợp</p>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Vui lòng thử chọn danh mục, thương hiệu khác hoặc mức giá phù hợp hơn.
+          </p>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary-deep"
+          >
+            Đặt lại bộ lọc
+          </button>
+        </div>
       </div>
     )
   }
@@ -59,7 +104,9 @@ export function ProductGrid() {
 
   return (
     <div ref={gridRef} className="scroll-mt-24">
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {toolbar}
+
+      <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {pagedProducts.map((p) => (
           <li key={p.sku} className="h-full">
             <ProductCard product={p} />
@@ -226,17 +273,15 @@ function buildPageList(current: number, total: number): (number | 'ellipsis')[] 
 
 function ProductCard({ product }: { product: Product }) {
   const router = useRouter()
-  const { branchId, addToCart } = useStore()
-  const branch = getBranch(branchId)
-  const qty = product.stock[branchId]
-  const otherBranch = BRANCHES.find((b) => b.id !== branchId) as (typeof BRANCHES)[number]
-  const otherQty = product.stock[otherBranch.id as BranchId]
+  const { addToCart } = useStore()
+  const totalStock = BRANCHES.reduce((sum, b) => sum + (product.stock[b.id] ?? 0), 0)
+  const inStock = totalStock > 0
   const discountPct = Math.round((1 - product.price / product.listPrice) * 100)
-  const soldOutEverywhere = qty === 0 && otherQty === 0
+  const href = `/product/${product.sku}`
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg">
-      <Link href={`/product/${product.sku}`} className="relative aspect-[4/3] bg-gradient-to-b from-secondary/70 to-card block overflow-hidden">
+      <Link href={href} className="relative aspect-[4/3] bg-gradient-to-b from-secondary/70 to-card block overflow-hidden">
         <img
           src={product.image || '/placeholder.svg'}
           alt={product.name}
@@ -256,8 +301,8 @@ function ProductCard({ product }: { product: Product }) {
 
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div>
-          <span className="font-mono text-[11px] font-semibold text-muted-foreground">{product.sku}</span>
-          <Link href={`/product/${product.sku}`}>
+          <span className="tabular font-mono text-[11px] font-semibold text-muted-foreground">{product.sku}</span>
+          <Link href={href}>
             <h3 className="line-clamp-2 min-h-[2.75rem] text-[15px] leading-snug font-bold text-foreground text-pretty hover:text-primary transition-colors">
               {product.name}
             </h3>
@@ -287,44 +332,31 @@ function ProductCard({ product }: { product: Product }) {
           </span>
         </div>
 
-        <div className="flex flex-col gap-1.5 rounded-lg bg-secondary/60 px-3 py-2.5">
-          <p className="flex items-center gap-2 text-xs font-semibold">
-            <span
-              className={cn('size-2 shrink-0 rounded-full', qty > 0 ? 'bg-success' : 'bg-danger')}
-              aria-hidden="true"
-            />
-            {qty > 0 ? (
-              <span className="text-success-ink">
-                Sẵn hàng tại {branch.district} <span className="tabular font-bold">({qty} máy)</span>
-              </span>
-            ) : (
-              <span className="text-danger-ink">Tạm hết hàng tại {branch.district}</span>
-            )}
-          </p>
-          <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <Store className="size-3" aria-hidden="true" />
-            ĐMX {otherBranch.district}:{' '}
-            <span className="tabular font-semibold text-body">
-              {otherQty > 0 ? `Còn ${otherQty} máy` : 'Tạm hết hàng'}
+        <p className="flex items-center gap-2 text-xs font-semibold">
+          <span
+            className={cn('size-2 shrink-0 rounded-full', inStock ? 'bg-success' : 'bg-danger')}
+            aria-hidden="true"
+          />
+          {inStock ? (
+            <span className="text-success-ink">
+              Còn hàng <span className="tabular">({totalStock} sản phẩm)</span>
             </span>
-          </p>
-        </div>
+          ) : (
+            <span className="text-danger-ink">Tạm hết hàng</span>
+          )}
+        </p>
 
         <button
           type="button"
-          disabled={soldOutEverywhere}
+          disabled={!inStock}
           onClick={() => {
             addToCart(product, 1)
             router.push('/cart')
           }}
           className="flex h-10 items-center justify-center gap-2 rounded-lg bg-primary text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-deep focus-visible:ring-4 focus-visible:ring-primary/25 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground"
         >
-          {soldOutEverywhere
-            ? 'Tạm hết hàng toàn hệ thống'
-            : qty > 0
-              ? 'Mua ngay / Giữ hàng tại siêu thị'
-              : `Đặt chuyển từ ĐMX ${otherBranch.district}`}
-          {!soldOutEverywhere && <ArrowRight className="size-4" aria-hidden="true" />}
+          {inStock ? 'Thêm vào giỏ' : 'Tạm hết hàng'}
+          {inStock && <ArrowRight className="size-4" aria-hidden="true" />}
         </button>
       </div>
     </article>

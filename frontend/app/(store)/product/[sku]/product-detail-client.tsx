@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Star } from 'lucide-react'
-import { BRANCHES, CATEGORIES, formatVND, type BranchId, type Product } from '@/lib/dmx-data'
+import { BRANCHES, CATEGORIES, formatVND, getBranch, type BranchId, type Product } from '@/lib/dmx-data'
 import { api, ApiError, type BackendReview } from '@/lib/api'
 import { useStore } from '@/components/dmx/store-provider'
 import { AppHeader } from '@/components/dmx/app-header'
@@ -47,6 +47,17 @@ function ProductDetailBody({ product }: { product: Product }) {
     setFullName(customer.fullName)
     setPhone(customer.phone)
   }, [customer])
+
+  /* Never leave the shopper on a branch where this product is out of stock. */
+  useEffect(() => {
+    if ((product.stock[branchId] ?? 0) > 0) return
+    const stocked = BRANCHES.find((b) => (product.stock[b.id] ?? 0) > 0)
+    if (stocked) {
+      setBranchId(stocked.id)
+      setQuantity(1)
+      setNotice('')
+    }
+  }, [product, branchId, setBranchId])
 
   useEffect(() => {
     if (!product.id) { setReviewsLoading(false); return }
@@ -118,7 +129,7 @@ function ProductDetailBody({ product }: { product: Product }) {
                 {BRANCHES.map((branch) => <option key={branch.id} value={branch.id}>{branch.name} — còn {product.stock[branch.id]} sản phẩm</option>)}
               </select>
             </label>
-            <p className="tabular text-sm text-muted-foreground">Còn {product.stock[branchId]} sản phẩm tại chi nhánh{inCart > 0 && ` · ${inCart} trong giỏ hàng`}</p>
+            <p className="tabular text-sm text-muted-foreground">Còn {product.stock[branchId] ?? 0} sản phẩm tại {getBranch(branchId).name}{inCart > 0 && ` · ${inCart} trong giỏ hàng`}</p>
             <label className="block text-sm font-semibold">Số lượng
               <input className={`${fieldClass} tabular max-w-28`} type="number" min="1" max={Math.max(available, 1)} step="1" value={selectedQuantity} disabled={!available} onChange={(event) => setQuantity(Math.max(1, Math.min(available, Math.floor(Number(event.target.value)) || 1)))} />
             </label>

@@ -14,7 +14,7 @@ import {
   Trash2,
   Truck,
 } from 'lucide-react'
-import { formatVND } from '@/lib/dmx-data'
+import { formatVND, BRANCHES, getBranch, type BranchId } from '@/lib/dmx-data'
 import { usePriceQuote } from '@/lib/pricing'
 import { useStore } from '@/components/dmx/store-provider'
 import { AppHeader } from '@/components/dmx/app-header'
@@ -26,7 +26,7 @@ export default function CartPage() {
 
 function CartContent() {
   const router = useRouter()
-  const { cart, updateCartQty, removeFromCart, clearCart, cartCount, branchId, products, backendConnected, customer } = useStore()
+  const { cart, updateCartQty, removeFromCart, clearCart, cartCount, branchId, setBranchId, products, backendConnected, customer } = useStore()
 
   // Nếu là Quản trị viên, không cho phép mua sắm
   if (customer?.role === 'ADMIN') {
@@ -150,13 +150,16 @@ function CartContent() {
                         {product.name}
                       </Link>
                       <div className="flex items-baseline gap-2">
-                        <span className="text-base font-extrabold text-price">{formatVND(product.price)}</span>
+                        <span className="tabular text-base font-extrabold text-price">{formatVND(product.price)}</span>
                         {product.listPrice > product.price && (
-                          <span className="text-xs text-muted-foreground line-through">
+                          <span className="tabular text-xs text-muted-foreground line-through">
                             {formatVND(product.listPrice)}
                           </span>
                         )}
                       </div>
+                      <p className="tabular text-[11px] font-medium text-muted-foreground">
+                        Còn {product.stock[branchId] ?? 0} sản phẩm tại {getBranch(branchId).name}
+                      </p>
                     </div>
                   </div>
 
@@ -218,6 +221,23 @@ function CartContent() {
             <aside className="flex flex-col gap-4">
               <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
                 <h2 className="text-base font-extrabold text-foreground">Tóm tắt đơn hàng</h2>
+
+                {/* Chi nhánh xuất kho — đổi ngay trong giỏ để đủ hàng cho mọi món */}
+                <label htmlFor="cart-branch" className="flex flex-col gap-1.5 text-xs font-bold text-foreground">
+                  Siêu thị xuất kho
+                  <select
+                    id="cart-branch"
+                    value={branchId}
+                    onChange={(e) => setBranchId(e.target.value as BranchId)}
+                    className="h-9 w-full cursor-pointer rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground transition-colors hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                  >
+                    {BRANCHES.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} · {b.district}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
                 {/* Form mã giảm giá */}
                 <form onSubmit={handleApplyPromo} className="flex flex-col gap-1.5">

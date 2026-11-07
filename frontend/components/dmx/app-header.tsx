@@ -2,23 +2,21 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
-  Check,
   ChevronDown,
-  ClipboardList,
   LayoutDashboard,
   LogIn,
   LogOut,
-  MapPin,
   Package,
   Search,
   Shield,
   ShoppingBag,
+  Store,
   User,
   X,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BRANCHES, CATEGORIES, formatVND, getBranch, type CategoryId } from '@/lib/dmx-data'
+import { CATEGORIES, formatVND, type CategoryId } from '@/lib/dmx-data'
 import { MVC_URL } from '@/lib/api'
 import { useStore } from './store-provider'
 import { cn } from '@/lib/utils'
@@ -32,17 +30,11 @@ export function AppHeader() {
           <GlobalSearch />
         </div>
         <div className="ml-auto flex items-center gap-2.5 lg:ml-0">
-          <BranchSelector />
-          <CartButton />
+          <OrdersLink />
+          <CartLink />
           <AccountDropdown />
         </div>
       </div>
-      <nav aria-label="Điều hướng chính" className="mx-auto flex max-w-[1440px] gap-5 overflow-x-auto px-4 pb-2 text-sm font-semibold md:px-8">
-        <Link href="/" className="whitespace-nowrap text-body hover:text-primary">Cửa hàng</Link>
-        <Link href="/orders" className="whitespace-nowrap text-body hover:text-primary">Đơn hàng</Link>
-        <Link href="/dashboard" className="whitespace-nowrap text-body hover:text-primary">Quản trị CSDL</Link>
-        <a href={MVC_URL} className="whitespace-nowrap text-body hover:text-primary">Trang MVC</a>
-      </nav>
     </header>
   )
 }
@@ -68,7 +60,7 @@ function Logo() {
 
 function GlobalSearch() {
   const router = useRouter()
-  const { products, query, setQuery, setCategory, setTab } = useStore()
+  const { products, query, setQuery, setCategory } = useStore()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(query)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -94,7 +86,6 @@ function GlobalSearch() {
 
   function commit(value: string) {
     setQuery(value)
-    setTab('catalog')
     setOpen(false)
     if (typeof window !== 'undefined' && window.location.pathname !== '/') {
       router.push('/')
@@ -105,7 +96,6 @@ function GlobalSearch() {
     setCategory(id)
     setQuery('')
     setDraft('')
-    setTab('catalog')
     setOpen(false)
     if (typeof window !== 'undefined' && window.location.pathname !== '/') {
       router.push('/')
@@ -210,7 +200,7 @@ function GlobalSearch() {
                   <img src={p.image || '/placeholder.svg'} alt="" className="size-10 rounded-md bg-muted object-contain" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-foreground">{p.name}</span>
-                    <span className="font-mono text-[11px] text-muted-foreground">{p.sku}</span>
+                    <span className="tabular font-mono text-[11px] text-muted-foreground">{p.sku}</span>
                   </span>
                   <span className="tabular shrink-0 text-sm font-extrabold text-price">{formatVND(p.price)}</span>
                 </button>
@@ -223,103 +213,37 @@ function GlobalSearch() {
   )
 }
 
-function BranchSelector() {
-  const { branchId, setBranchId } = useStore()
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const branch = getBranch(branchId)
-
-  useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [])
-
+function OrdersLink() {
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
-        className="flex h-10 items-center gap-2 rounded-full border border-primary/25 bg-primary/5 pr-3 pl-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/10"
-      >
-        <span className="flex size-7 items-center justify-center rounded-full bg-primary text-white">
-          <MapPin className="size-3.5" aria-hidden="true" />
-        </span>
-        <span className="hidden flex-col leading-tight sm:flex">
-          <span className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">Chi nhánh siêu thị</span>
-          <span className="text-xs font-bold whitespace-nowrap text-foreground">
-            {branch.name} <span className="font-medium text-muted-foreground">({branch.district})</span>
-          </span>
-        </span>
-        <ChevronDown
-          className={cn('size-4 text-muted-foreground transition-transform', open && 'rotate-180')}
-          aria-hidden="true"
-        />
-      </button>
-      {open && (
-        <ul
-          role="listbox"
-          aria-label="Chọn chi nhánh"
-          className="absolute right-0 top-[calc(100%+6px)] z-50 w-80 overflow-hidden rounded-xl border border-border bg-card p-1.5 shadow-lg"
-        >
-          {BRANCHES.map((b) => {
-            const active = b.id === branchId
-            return (
-              <li key={b.id} role="option" aria-selected={active}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBranchId(b.id)
-                    setOpen(false)
-                  }}
-                  className={cn(
-                    'flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
-                    active ? 'bg-primary/8' : 'hover:bg-secondary',
-                  )}
-                >
-                  <MapPin
-                    className={cn('mt-0.5 size-4 shrink-0', active ? 'text-primary' : 'text-muted-foreground')}
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-bold text-foreground">
-                      {b.name} · {b.district}
-                    </span>
-                    <span className="block text-xs text-muted-foreground">{b.address}</span>
-                  </span>
-                  {active && <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </div>
+    <Link
+      href="/orders"
+      className="flex h-10 items-center gap-2 rounded-full border border-border bg-card px-3 text-xs font-bold text-body transition-colors hover:border-primary hover:text-primary"
+      aria-label="Đơn hàng"
+    >
+      <Package className="size-[18px]" aria-hidden="true" />
+      <span className="hidden sm:inline">Đơn hàng</span>
+    </Link>
   )
 }
 
-function CartButton() {
-  const { cartCount, customer } = useStore()
-  if (customer?.role === 'ADMIN') return null
+function CartLink() {
+  const { cartCount } = useStore()
 
   return (
     <Link
       href="/cart"
-      className="relative flex size-10 items-center justify-center rounded-full border border-border bg-card text-body transition-colors hover:border-primary hover:text-primary"
+      className="relative flex h-10 items-center gap-2 rounded-full border border-border bg-card px-3 text-xs font-bold text-body transition-colors hover:border-primary hover:text-primary"
       aria-label={`Giỏ hàng: ${cartCount} sản phẩm`}
-      title="Xem giỏ hàng của bạn"
     >
-      <ShoppingBag className="size-[18px]" aria-hidden="true" />
-      {cartCount > 0 && (
-        <span className="tabular absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-extrabold text-foreground ring-2 ring-card shadow-xs">
-          {cartCount}
-        </span>
-      )}
+      <span className="relative">
+        <ShoppingBag className="size-[18px]" aria-hidden="true" />
+        {cartCount > 0 && (
+          <span className="tabular absolute -top-2 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-extrabold text-foreground ring-2 ring-card">
+            {cartCount}
+          </span>
+        )}
+      </span>
+      <span className="hidden sm:inline">Giỏ hàng</span>
     </Link>
   )
 }
@@ -347,24 +271,16 @@ function AccountDropdown() {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'flex h-10 items-center gap-2 rounded-full border px-3 text-xs font-bold transition-all',
+          'flex h-10 items-center gap-2 rounded-full border px-3 text-xs font-bold transition-colors',
           open
             ? 'border-primary bg-primary/10 text-primary'
-            : isAdmin
-              ? 'border-amber-500/50 bg-amber-50 text-amber-900 hover:border-amber-500'
-              : customer
-                ? 'border-emerald-500/40 bg-emerald-50/60 text-emerald-900 hover:border-emerald-500'
-                : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-secondary',
+            : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-secondary',
         )}
       >
         <span
           className={cn(
             'flex size-7 items-center justify-center rounded-full text-xs font-bold',
-            isAdmin
-              ? 'bg-amber-600 text-white'
-              : customer
-                ? 'bg-emerald-600 text-white'
-                : 'bg-primary/10 text-primary',
+            isAdmin ? 'bg-amber-600 text-white' : customer ? 'bg-emerald-600 text-white' : 'bg-primary/10 text-primary',
           )}
         >
           {isAdmin ? (
@@ -378,141 +294,71 @@ function AccountDropdown() {
         <span className="hidden max-w-[120px] truncate sm:inline">
           {isAdmin ? 'Quản trị viên' : customer ? customer.fullName : 'Tài khoản'}
         </span>
-        <ChevronDown className={cn('size-3.5 text-muted-foreground transition-transform', open && 'rotate-180')} />
+        <ChevronDown className={cn('size-3.5 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden="true" />
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 overflow-hidden rounded-xl border border-border bg-card p-2 shadow-xl animate-in fade-in zoom-in-95"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 overflow-hidden rounded-xl border border-border bg-card p-2 shadow-xl"
         >
-          {customer ? (
-            <>
-              {isAdmin ? (
-                /* Giao diện dành riêng cho Admin */
-                <>
-                  <div className="mb-1 rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2.5">
-                    <div className="flex items-center justify-between">
-                      <p className="truncate text-xs font-extrabold text-amber-950">Ban Quản Trị Hệ Thống</p>
-                      <span className="rounded-md bg-amber-200 px-1.5 py-0.5 text-[10px] font-black text-amber-900">
-                        ADMIN
-                      </span>
-                    </div>
-                    <p className="text-[11px] font-medium text-amber-800">admin@dmx.mwg.vn</p>
-                  </div>
+          <div className="mb-1 border-b border-border px-3 py-2.5">
+            <p className="truncate text-xs font-bold text-foreground">
+              {isAdmin ? 'Ban Quản Trị Hệ Thống' : customer ? customer.fullName : 'Chào mừng quý khách'}
+            </p>
+            <p className="truncate text-[11px] text-muted-foreground">
+              {isAdmin ? 'admin@dmx.mwg.vn' : customer ? `SĐT: ${customer.phone}` : 'Thành viên Điện Máy Xanh'}
+            </p>
+          </div>
 
-                  <div className="py-1">
-                    <Link
-                      href="/dashboard"
-                      onClick={() => setOpen(false)}
-                      className="flex w-full items-center gap-2.5 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-500/20"
-                    >
-                      <Shield className="size-4 text-amber-600" />
-                      Bảng điều khiển Quản trị (Admin)
-                    </Link>
+          <div className="py-1">
+            {!customer && (
+              <MenuLink href="/auth" icon={<LogIn className="size-4 text-primary" />} label="Đăng nhập / Đăng ký" />
+            )}
+            <MenuLink href="/orders" icon={<Package className="size-4 text-muted-foreground" />} label="Đơn hàng" />
+            <MenuLink href="/cart" icon={<ShoppingBag className="size-4 text-muted-foreground" />} label="Giỏ hàng" />
+          </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        logoutCustomer()
-                        setOpen(false)
-                      }}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50"
-                    >
-                      <LogOut className="size-4 text-rose-500" />
-                      Đăng xuất quản trị
-                    </button>
-                  </div>
-                </>
-              ) : (
-                /* Giao diện dành cho Khách hàng thông thường */
-                <>
-                  <div className="mb-1 rounded-lg border border-border bg-secondary/40 px-3 py-2.5">
-                    <div className="flex items-center justify-between">
-                      <p className="truncate text-xs font-extrabold text-foreground">{customer.fullName}</p>
-                      <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                        Khách hàng thân thiết
-                      </span>
-                    </div>
-                    <p className="text-[11px] font-medium text-muted-foreground">SĐT: {customer.phone}</p>
-                    {customer.email && <p className="truncate text-[11px] text-muted-foreground">{customer.email}</p>}
-                  </div>
+          <div className="border-t border-border py-1">
+            <MenuLink href="/dashboard" icon={<LayoutDashboard className="size-4 text-muted-foreground" />} label="Quản trị CSDL" />
+            <a
+              href={MVC_URL}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+            >
+              <Store className="size-4 text-muted-foreground" aria-hidden="true" />
+              Trang MVC
+            </a>
+          </div>
 
-                  <div className="py-1">
-                    <Link
-                      href="/orders"
-                      onClick={() => setOpen(false)}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
-                    >
-                      <Package className="size-4 text-primary" />
-                      Đơn hàng của tôi
-                    </Link>
-
-                    <Link
-                      href="/cart"
-                      onClick={() => setOpen(false)}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
-                    >
-                      <ShoppingBag className="size-4 text-muted-foreground" />
-                      Giỏ hàng của tôi
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        logoutCustomer()
-                        setOpen(false)
-                      }}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50"
-                    >
-                      <LogOut className="size-4 text-rose-500" />
-                      Đăng xuất tài khoản
-                    </button>
-                  </div>
-                </>
-              )}
-            </>
-          ) : (
-            /* Giao diện khi chưa đăng nhập */
-            <>
-              <div className="border-b border-border px-3 py-2.5">
-                <p className="text-xs font-bold text-foreground">Chào mừng quý khách</p>
-                <p className="text-[11px] text-muted-foreground">Thành viên Điện Máy Xanh</p>
-              </div>
-
-              <div className="py-1.5">
-                <Link
-                  href="/auth"
-                  onClick={() => setOpen(false)}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                >
-                  <LogIn className="size-4 text-primary" />
-                  Đăng nhập / Đăng ký
-                </Link>
-
-                <Link
-                  href="/orders"
-                  onClick={() => setOpen(false)}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
-                >
-                  <Package className="size-4 text-muted-foreground" />
-                  Tra cứu đơn hàng
-                </Link>
-
-                <Link
-                  href="/cart"
-                  onClick={() => setOpen(false)}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
-                >
-                  <ShoppingBag className="size-4 text-muted-foreground" />
-                  Giỏ hàng của tôi
-                </Link>
-              </div>
-            </>
+          {customer && (
+            <div className="border-t border-border py-1">
+              <button
+                type="button"
+                onClick={() => {
+                  logoutCustomer()
+                  setOpen(false)
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50"
+              >
+                <LogOut className="size-4 text-rose-500" aria-hidden="true" />
+                Đăng xuất
+              </button>
+            </div>
           )}
         </div>
       )}
+    </div>
+  )
+}
 
-          </div>
+function MenuLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+    >
+      {icon}
+      {label}
+    </Link>
   )
 }
