@@ -1,11 +1,14 @@
 package com.example.demojpa;
 
+import com.example.demojpa.entity.Customer;
 import com.example.demojpa.entity.Inventory;
 import com.example.demojpa.entity.Product;
+import com.example.demojpa.entity.ProductReview;
 import com.example.demojpa.entity.Promotion;
-import com.example.demojpa.seeder.DataSeeder;
 import com.example.demojpa.entity.StoreBranch;
 import com.example.demojpa.repository.*;
+import com.example.demojpa.seeder.DataSeeder;
+import com.example.demojpa.service.ProductReviewService;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.metamodel.EntityType;
 import org.hibernate.SessionFactory;
@@ -16,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -80,6 +84,9 @@ class DemojpaApplicationTests {
 
     @Autowired
     private ProductReviewRepository reviewRepo;
+
+    @Autowired
+    private ProductReviewService reviewService;
 
     @Autowired
     private CustomerOrderRepository orderRepo;
@@ -874,6 +881,104 @@ class DemojpaApplicationTests {
                         .content("{\"fullName\":\"Thử\",\"phone\":\" 0901234567 \"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message", is("Số điện thoại này đã được đăng ký thành viên")));
+    }
+
+    // ========================================================================
+    // TEST 11: ProductReview — N+1 Elimination + Guest Review Submission
+    // ========================================================================
+
+    @Test
+    @DisplayName("11a. Danh sách đánh giá không N+1: prepareStatementCount <= 2")
+    void reviewsByProductNoNPlusOne() throws Exception {
+        Product product = productRepo.findById(1L).orElseThrow();
+        for (int i = 0; i < 3; i++) {
+            Customer customer = customerRepo.save(new Customer("Khách " + i, "097700000" + i, null, null));
+            reviewRepo.save(new ProductReview(product, customer, 5, "Tốt"));
+        }
+
+        hibernateStats.clear();
+        mockMvc.perform(get("/api/v1/reviews/product/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(4))))
+                .andExpect(jsonPath("$[0].customer.fullName").exists())
+                .andExpect(jsonPath("$[0].product.category.name").exists())
+                .andExpect(jsonPath("$[0].product.brand.name").exists());
+        assertTrue(hibernateStats.getPrepareStatementCount() <= 2, "Danh sách theo sản phẩm không được N+1");
+
+        hibernateStats.clear();
+        mockMvc.perform(get("/api/v1/reviews"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(5))));
+        assertTrue(hibernateStats.getPrepareStatementCount() <= 2, "Danh sách tất cả đánh giá không được N+1");
+    }
+
+    @Test
+    @DisplayName("11b. POST đánh giá tạo và liên kết khách vãng lai")
+    void createReviewWithGuestPhoneCreatesCustomer() throws Exception {
+        String payload = """
+                {"product":{"id":1}, "customer":{"fullName":"Khách Review","phone":"0988777666"},
+                 "rating":5, "comment":"Rất êm"}
+                """;
+        mockMvc.perform(post("/api/v1/reviews").contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.product.id", is(1)))
+                .andExpect(jsonPath("$.rating", is(5)))
+                .andExpect(jsonPath("$.comment", is("Rất êm")))
+                .andExpect(jsonPath("$.customer.id").exists())
+                .andExpect(jsonPath("$.customer.fullName", is("Khách Review")))
+                .andExpect(jsonPath("$.customer.phone", is("0988777666")));
+        Customer savedCustomer = customerRepo.findByPhone("0988777666").orElseThrow();
+        assertTrue(reviewRepo.findByCustomer_Id(savedCustomer.getId()).stream()
+                .anyMatch(review -> review.getProduct().getId() == 1L && "Rất êm".equals(review.getComment())));
+    }
+
+    @Test
+    void reviewResolvesExistingCustomersAndDefaultName() throws Exception {
+        Customer existing = customerRepo.findByPhone("0901234567").orElseThrow();
+        long count = customerRepo.count();
+        String byId = "{\"product\":{\"id\":1},\"customer\":{\"id\":" + existing.getId() + "},\"rating\":4}";
+        String byPhone = "{\"product\":{\"id\":1},\"customer\":{\"fullName\":\"Tên khác\",\"phone\":\" 0901234567 \"},\"rating\":4}";
+        for (String payload : new String[]{byId, byPhone}) {
+            mockMvc.perform(post("/api/v1/reviews").contentType(MediaType.APPLICATION_JSON).content(payload))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.customer.id", is(existing.getId().intValue())))
+                    .andExpect(jsonPath("$.customer.fullName", is(existing.getFullName())));
+        }
+        assertEquals(count, customerRepo.count());
+        mockMvc.perform(post("/api/v1/reviews").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"product\":{\"id\":1},\"customer\":{\"fullName\":\"  \",\"phone\":\" 0988777667 \"},\"rating\":5}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.customer.fullName", is("Khách hàng")))
+                .andExpect(jsonPath("$.customer.phone", is("0988777667")));
+    }
+
+    @Test
+    void invalidReviewsReturnConsistentErrorBody() throws Exception {
+        String[][] invalid = {
+                {"{\"product\":{\"id\":1},\"customer\":{\"id\":1}}", "Điểm đánh giá phải từ 1 đến 5"},
+                {"{\"product\":{\"id\":1},\"customer\":{\"id\":1},\"rating\":0}", "Điểm đánh giá phải từ 1 đến 5"},
+                {"{\"product\":{\"id\":1},\"customer\":{\"id\":1},\"rating\":6}", "Điểm đánh giá phải từ 1 đến 5"},
+                {"{\"customer\":{\"id\":1},\"rating\":5}", "Thiếu sản phẩm đánh giá"},
+                {"{\"product\":{},\"customer\":{\"id\":1},\"rating\":5}", "Thiếu sản phẩm đánh giá"},
+                {"{\"product\":{\"id\":999999},\"customer\":{\"id\":1},\"rating\":5}", "Không tìm thấy sản phẩm"},
+                {"{\"product\":{\"id\":1},\"rating\":5}", "Thiếu thông tin khách hàng đánh giá"},
+                {"{\"product\":{\"id\":1},\"customer\":{\"phone\":\"  \"},\"rating\":5}", "Thiếu thông tin khách hàng đánh giá"},
+                {"{\"product\":{\"id\":1},\"customer\":{\"id\":999999,\"phone\":\"0901234567\"},\"rating\":5}", "Không tìm thấy khách hàng"}
+        };
+        for (String[] item : invalid) {
+            mockMvc.perform(post("/api/v1/reviews").contentType(MediaType.APPLICATION_JSON).content(item[0]))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error", is(item[1])));
+        }
+    }
+
+    @Test
+    void failedReviewDoesNotLeaveNewCustomer() {
+        Product product = productRepo.findById(1L).orElseThrow();
+        ProductReview review = new ProductReview(product, new Customer("Khách lỗi", "0988777668", null, null), 5, "Tốt");
+        review.setReviewDate(null);
+        assertThrows(DataIntegrityViolationException.class, () -> reviewService.createReview(review));
+        assertTrue(customerRepo.findByPhone("0988777668").isEmpty());
     }
 
     /**

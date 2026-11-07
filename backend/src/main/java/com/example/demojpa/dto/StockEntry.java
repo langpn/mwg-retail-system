@@ -1,9 +1,6 @@
 package com.example.demojpa.dto;
 
-/**
- * DTO: StockEntry — Một dòng trong ma trận tồn kho phẳng (productId × branchId).
- * Dùng cho endpoint GET /api/v1/inventory/stock-matrix.
- */
+/** Một dòng trong ma trận tồn kho phẳng (productId × branchId). GET /api/v1/inventory/stock-matrix. */
 public class StockEntry {
 
     private Long productId;
@@ -11,8 +8,7 @@ public class StockEntry {
     private Long branchId;
     private Integer quantity;
 
-    public StockEntry() {
-    }
+    public StockEntry() {}
 
     public StockEntry(Long productId, String sku, Long branchId, Integer quantity) {
         this.productId = productId;
@@ -21,35 +17,12 @@ public class StockEntry {
         this.quantity = quantity;
     }
 
-    public Long getProductId() {
-        return productId;
-    }
-
-    public void setProductId(Long productId) {
-        this.productId = productId;
-    }
-
-    public String getSku() {
-        return sku;
-    }
-
-    public void setSku(String sku) {
-        this.sku = sku;
-    }
-
-    public Long getBranchId() {
-        return branchId;
-    }
-
-    public void setBranchId(Long branchId) {
-        this.branchId = branchId;
-    }
-
-    public Integer getQuantity() {
-        return quantity;
-    }
-
-    public void setQuantity(Integer quantity) {
-        this.quantity = quantity;
-    }
+    public Long getProductId() { return productId; }
+    public void setProductId(Long productId) { this.productId = productId; }
+    public String getSku() { return sku; }
+    public void setSku(String sku) { this.sku = sku; }
+    public Long getBranchId() { return branchId; }
+    public void setBranchId(Long branchId) { this.branchId = branchId; }
+    public Integer getQuantity() { return quantity; }
+    public void setQuantity(Integer quantity) { this.quantity = quantity; }
 }

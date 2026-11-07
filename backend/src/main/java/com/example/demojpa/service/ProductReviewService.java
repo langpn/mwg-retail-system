@@ -7,13 +7,11 @@ import com.example.demojpa.repository.CustomerRepository;
 import com.example.demojpa.repository.ProductRepository;
 import com.example.demojpa.repository.ProductReviewRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Service: ProductReviewService (Quản lý nghiệp vụ Đánh giá sản phẩm)
- */
 @Service
 public class ProductReviewService {
 
@@ -30,7 +28,7 @@ public class ProductReviewService {
     }
 
     public List<ProductReview> getAllReviews() {
-        return reviewRepo.findAll();
+        return reviewRepo.findAllWithDetails();
     }
 
     public Optional<ProductReview> getReviewById(Long id) {
@@ -38,28 +36,37 @@ public class ProductReviewService {
     }
 
     public List<ProductReview> getReviewsByProductId(Long productId) {
-        return reviewRepo.findByProduct_Id(productId);
+        return reviewRepo.findByProductIdWithDetails(productId);
     }
 
+    @Transactional
     public ProductReview createReview(ProductReview review) {
-        // Kiem tra du lieu dau vao co ban
         if (review.getRating() == null || review.getRating() < 1 || review.getRating() > 5) {
-            throw new IllegalArgumentException("Diem danh gia phai tu 1 den 5");
+            throw new IllegalArgumentException("Điểm đánh giá phải từ 1 đến 5");
         }
         if (review.getProduct() == null || review.getProduct().getId() == null) {
-            throw new IllegalArgumentException("Thieu san pham danh gia");
-        }
-        if (review.getCustomer() == null || review.getCustomer().getId() == null) {
-            throw new IllegalArgumentException("Thieu khach hang danh gia");
+            throw new IllegalArgumentException("Thiếu sản phẩm đánh giá");
         }
 
-        // Gan lai entity that tu DB dua tren id gui len (tranh loi detached entity)
         Product product = productRepo.findById(review.getProduct().getId())
-                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay san pham"));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm"));
         review.setProduct(product);
 
-        Customer customer = customerRepo.findById(review.getCustomer().getId())
-                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay khach hang"));
+        Customer customer;
+        if (review.getCustomer() != null && review.getCustomer().getId() != null) {
+            customer = customerRepo.findById(review.getCustomer().getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy khách hàng"));
+        } else if (review.getCustomer() != null
+                && review.getCustomer().getPhone() != null
+                && !review.getCustomer().getPhone().isBlank()) {
+            String phone = review.getCustomer().getPhone().trim();
+            String name = (review.getCustomer().getFullName() != null && !review.getCustomer().getFullName().isBlank())
+                    ? review.getCustomer().getFullName().trim() : "Khách hàng";
+            customer = customerRepo.findByPhone(phone)
+                    .orElseGet(() -> customerRepo.save(new Customer(name, phone, null, null)));
+        } else {
+            throw new IllegalArgumentException("Thiếu thông tin khách hàng đánh giá");
+        }
         review.setCustomer(customer);
 
         return reviewRepo.save(review);

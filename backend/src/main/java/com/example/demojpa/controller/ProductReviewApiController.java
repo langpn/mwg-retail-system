@@ -8,11 +8,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * REST Controller: ProductReviewApiController
- * Cung cấp Web Service cho Phân hệ Đánh giá sản phẩm
- * Tuân thủ đầy đủ các phương thức HTTP: GET, POST, DELETE
- */
 @RestController
 @RequestMapping("/api/v1/reviews")
 @CrossOrigin(origins = "*")
@@ -24,48 +19,26 @@ public class ProductReviewApiController {
         this.reviewService = reviewService;
     }
 
-    /**
-     * GET /api/v1/reviews
-     * Lấy toàn bộ danh sách đánh giá sản phẩm
-     */
     @GetMapping
     public ResponseEntity<List<ProductReview>> getAllReviews() {
         return ResponseEntity.ok(reviewService.getAllReviews());
     }
 
-    /**
-     * GET /api/v1/reviews/product/{productId}
-     * Lấy danh sách đánh giá theo mã sản phẩm
-     */
     @GetMapping("/product/{productId}")
     public ResponseEntity<List<ProductReview>> getReviewsByProductId(@PathVariable Long productId) {
         return ResponseEntity.ok(reviewService.getReviewsByProductId(productId));
     }
 
-    /**
-     * POST /api/v1/reviews
-     * Thêm mới một đánh giá sản phẩm
-     */
+    /** ApiExceptionHandler xử lý IllegalArgumentException → 400 {"error": "..."} */
     @PostMapping
     public ResponseEntity<ProductReview> createReview(@RequestBody ProductReview review) {
-        try {
-            ProductReview saved = reviewService.createReview(review);
-            return ResponseEntity.status(HttpStatus.CREATED).body(saved);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(reviewService.createReview(review));
     }
 
-    /**
-     * DELETE /api/v1/reviews/{id}
-     * Xóa một đánh giá sản phẩm khỏi hệ thống
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteReview(@PathVariable Long id) {
-        boolean deleted = reviewService.deleteReview(id);
-        if (deleted) {
-            return ResponseEntity.noContent().build();
-        }
-        return ResponseEntity.notFound().build();
+        return reviewService.deleteReview(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
     }
 }
