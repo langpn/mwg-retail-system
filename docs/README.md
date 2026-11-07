@@ -24,6 +24,7 @@ Toàn bộ tài liệu được thiết kế theo nguyên lý **Atomic Design & 
 | `02.2` | [`02-database-erd-10-tables.md`](./02-architecture-and-specs/02-database-erd-10-tables.md) | Sơ đồ ERD, đặc tả vật lý 10 bảng MySQL, JPA Annotations, chống lặp `Circular Reference` & chiến lược `Cascade`. |
 | `02.3` | [`03-rest-api-specification.md`](./02-architecture-and-specs/03-rest-api-specification.md) | Danh mục đầy đủ **29+ RESTful API routes** trên 6 Controller (`GET`, `POST`, `PUT`, `DELETE`) & mẫu JSON payload. |
 | `02.4` | [`mwg-retail-system.drawio`](./02-architecture-and-specs/mwg-retail-system.drawio) | **File nguồn Draw.io gốc (4 Tabs Vector):** `Use Case UML`, `Kiến trúc 4 Tầng`, `Conceptual ERD`, `Physical Schema 10 Bảng` — kéo thả trực tiếp lên `app.diagrams.net`. |
+| `02.5` | [`schema-10-tables.sql`](./02-architecture-and-specs/schema-10-tables.sql) | Script SQL DDL khởi tạo 10 bảng MySQL (dùng cho MySQL Workbench hoặc `Insert -> Advanced -> SQL` trên draw.io). |
 
 ### Phân khu `03-execution-and-team/` — Kế Hoạch Thực Thi & Phối Hợp Nhóm
 | Mã file | Tài liệu | Phạm vi nguyên tử |
