@@ -1,8 +1,66 @@
 const BASE = process.env.NEXT_PUBLIC_API_BASE || '/api/v1'
 
+/* ── Pagination types ── */
+export interface PagedResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  first: boolean
+  last: boolean
+}
+
+export interface ProductPageParams {
+  page?: number
+  size?: number
+  sortBy?: string
+  sortDir?: string
+  category?: string
+  brand?: string
+  minPrice?: number
+  maxPrice?: number
+  keyword?: string
+}
+
+/**
+ * Build a query string for GET /api/v1/products/page.
+ * Only parameters that actually carry a value are appended, so the backend
+ * never receives empty strings (which it would treat as a real filter).
+ */
+export function buildProductPageQuery(params: ProductPageParams = {}): string {
+  const qs = new URLSearchParams()
+
+  function append(key: string, value: string | number | undefined) {
+    if (value === undefined || value === null) return
+    const text = String(value).trim()
+    if (!text) return
+    qs.append(key, text)
+  }
+
+  append('page', params.page)
+  append('size', params.size)
+  append('sortBy', params.sortBy)
+  append('sortDir', params.sortDir)
+  append('category', params.category)
+  append('brand', params.brand)
+  append('minPrice', params.minPrice)
+  append('maxPrice', params.maxPrice)
+  append('keyword', params.keyword)
+
+  return qs.toString()
+}
+
 export const api = {
   /* ── Products ── */
   getProducts: () => fetch(`${BASE}/products`).then((r) => r.json()),
+  getProductsPage: (params: ProductPageParams = {}): Promise<PagedResponse<any>> => {
+    const qs = buildProductPageQuery(params)
+    return fetch(`${BASE}/products/page${qs ? `?${qs}` : ''}`).then((r) => {
+      if (!r.ok) throw new Error(`${r.status}`)
+      return r.json()
+    })
+  },
   getCategories: () => fetch(`${BASE}/products/categories`).then((r) => r.json()),
   getBrands: () => fetch(`${BASE}/products/brands`).then((r) => r.json()),
 

@@ -36,9 +36,47 @@ function del(path: string): Promise<void> {
   })
 }
 
+/* ── Pagination types ── */
+export interface PagedResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  first: boolean
+  last: boolean
+}
+
+export interface ProductPageParams {
+  page?: number
+  size?: number
+  sortBy?: string
+  sortDir?: string
+  category?: string
+  brand?: string
+  minPrice?: number
+  maxPrice?: number
+  keyword?: string
+}
+
+function buildQuery(params: ProductPageParams): string {
+  const qs = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue
+    const text = String(value).trim()
+    if (!text) continue
+    qs.append(key, text)
+  }
+  return qs.toString()
+}
+
 /* ── Products ── */
 export const productsApi = {
   list: () => get<any[]>('/products'),
+  page: (params: ProductPageParams = {}) => {
+    const qs = buildQuery(params)
+    return get<PagedResponse<any>>(`/products/page${qs ? `?${qs}` : ''}`)
+  },
   create: (p: any) => post<any>('/products', p),
   update: (id: number, p: any) => put<any>(`/products/${id}`, p),
   remove: (id: number) => del(`/products/${id}`),

@@ -13,7 +13,7 @@ import {
   type Order,
   type Product,
 } from '@/lib/dmx-data'
-import { api } from '@/lib/api'
+import { api, buildProductPageQuery, type ProductPageParams } from '@/lib/api'
 
 export type ViewTab = 'catalog' | 'inventory'
 export type SortOption = 'default' | 'price-asc' | 'price-desc' | 'discount'
@@ -78,6 +78,15 @@ interface StoreValue {
   setTab: (tab: ViewTab) => void
   sort: SortOption
   setSort: (s: SortOption) => void
+  /* ── Server-side pagination for the home product grid ── */
+  page: number
+  pageSize: number
+  pagedProducts: Product[]
+  totalProducts: number
+  totalPages: number
+  pageLoading: boolean
+  setPage: (p: number) => void
+  setPageSize: (s: number) => void
   orderSku: string
   startOrder: (sku: string) => void
   setOrderSku: (sku: string) => void
@@ -109,26 +118,65 @@ let logCounter = 1
 const BRANCH_ID_MAP: Record<BranchId, number> = { q9: 1, td: 2 }
 const BRANCH_KEY_MAP: Record<number, BranchId> = { 1: 'q9', 2: 'td' }
 
+/* Backend category code → frontend CategoryId */
 const CATEGORY_CODE_MAP: Record<string, Exclude<CategoryId, 'all'>> = {
   MAYGIAT: 'washer',
   TULANH: 'fridge',
   TIVI: 'tv',
+  GIADUNG: 'small',
 }
 
-function mapBackendProduct(bp: any, inventories: any[]): Product {
+/* Frontend CategoryId → backend category code */
+const CATEGORY_ID_TO_CODE: Record<Exclude<CategoryId, 'all'>, string> = {
+  washer: 'MAYGIAT',
+  fridge: 'TULANH',
+  tv: 'TIVI',
+  small: 'GIADUNG',
+}
+
+/* Budget filter → backend price range */
+const BUDGET_PRICE_RANGE: Record<BudgetId, { minPrice?: number; maxPrice?: number }> = {
+  any: {},
+  lt8: { maxPrice: 8_000_000 },
+  lt10: { maxPrice: 10_000_000 },
+  lt15: { maxPrice: 15_000_000 },
+  premium: { minPrice: 15_000_000 },
+}
+
+function mapBackendProduct(
+  bp: any,
+  inventories: any[],
+  existingStock?: Record<BranchId, number>,
+): Product {
   const categoryCode = bp.category?.code ?? ''
   const brandName = bp.brand?.name ?? 'Toshiba'
 
   const stock: Record<BranchId, number> = { q9: 0, td: 0 }
-  for (const inv of inventories) {
-    if (inv.product?.id === bp.id) {
-      const key = BRANCH_KEY_MAP[inv.storeBranch?.id]
-      if (key) stock[key] = inv.quantity ?? 0
+  if (existingStock) {
+    stock.q9 = existingStock.q9
+    stock.td = existingStock.td
+  } else if (inventories.length > 0) {
+    for (const inv of inventories) {
+      if (inv.product?.id === bp.id) {
+        const key = BRANCH_KEY_MAP[inv.storeBranch?.id]
+        if (key) stock[key] = inv.quantity ?? 0
+      }
     }
   }
 
   // Try to find matching hardcoded product for listPrice, specs, image
   const hardcoded = INITIAL_PRODUCTS.find((p) => p.sku === bp.sku)
+
+  // Never show a page as "out of stock" just because inventory has not loaded yet.
+  if (!existingStock && inventories.length === 0 && hardcoded) {
+    stock.q9 = hardcoded.stock.q9
+    stock.td = hardcoded.stock.td
+  }
+
+  const safeListPrice =
+    hardcoded && hardcoded.listPrice > bp.price
+      ? hardcoded.listPrice
+      : Math.round((bp.price * 1.22) / 10_000) * 10_000
 
   return {
     id: bp.id,
@@ -137,7 +185,7 @@ function mapBackendProduct(bp: any, inventories: any[]): Product {
     category: CATEGORY_CODE_MAP[categoryCode] ?? 'small',
     brand: brandName as BrandId,
     price: bp.price,
-    listPrice: hardcoded?.listPrice ?? Math.round(bp.price * 1.25),
+    listPrice: safeListPrice,
     specs: hardcoded?.specs ?? [bp.description ?? ''],
     image: hardcoded?.image ?? '/products/washer-front.png',
     stock,
@@ -177,6 +225,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [sort, setSort] = useState<SortOption>('default')
   const [orderSku, setOrderSku] = useState(INITIAL_PRODUCTS[0].sku)
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null)
+
+  /* ── Home grid pagination state (server-side + offline fallback) ── */
+  const [pageSize, setPageSizeState] = useState(8)
+  const [serverPage, setServerPage] = useState<{
+    key: string
+    products: Product[]
+    totalElements: number
+    totalPages: number
+  } | null>(null)
+  const [pageLoading, setPageLoading] = useState(false)
 
   // Customer state with persistence
   const [customer, setCustomer] = useState<CustomerProfile | null>(null)
@@ -325,6 +383,153 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const pushLog = useCallback((entry: Omit<ApiLogEntry, 'id' | 'at'>) => {
     setApiLog((prev) => [{ ...entry, id: logCounter++, at: new Date().toISOString() }, ...prev].slice(0, 6))
   }, [])
+
+  /* ── Pagination controls ── */
+  // A single key covering everything that invalidates the current page. When any
+  // filter/sort/page-size changes, `page` resolves to 0 during render, so the
+  // grid never requests a stale page and never flashes an empty one.
+  const filtersKey = `${category}|${brands.join(',')}|${budget}|${query.trim()}|${sort}|${pageSize}`
+  const [pager, setPager] = useState<{ key: string; page: number }>({ key: filtersKey, page: 0 })
+  const page = pager.key === filtersKey ? pager.page : 0
+
+  // Persist the reset so returning to an earlier filter set never restores a
+  // stale page number (the derived `page` above already reads 0 this render).
+  useEffect(() => {
+    setPager((prev) => (prev.key === filtersKey && prev.page === 0 ? prev : { key: filtersKey, page: 0 }))
+  }, [filtersKey])
+
+  const setPage = useCallback(
+    (p: number) => {
+      setPager({ key: filtersKey, page: Math.max(0, Math.floor(p)) })
+    },
+    [filtersKey],
+  )
+
+  const setPageSize = useCallback((s: number) => {
+    setPageSizeState(Math.max(1, Math.floor(s)))
+  }, [])
+
+  /* Sort option → backend sortBy/sortDir (discount is computed client-side). */
+  const serverSort = useMemo(() => {
+    switch (sort) {
+      case 'price-asc':
+        return { sortBy: 'price', sortDir: 'asc' }
+      case 'price-desc':
+        return { sortBy: 'price', sortDir: 'desc' }
+      default:
+        return { sortBy: 'id', sortDir: 'asc' }
+    }
+  }, [sort])
+
+  /* 'discount' only exists in the client dataset (it needs listPrice). */
+  const useServerPaging = backendConnected === true && sort !== 'discount'
+
+  /* Latest stock map, kept in a ref so inventory edits never refetch a page. */
+  const stockBySku = useMemo(() => {
+    const map = new Map<string, Record<BranchId, number>>()
+    for (const p of products) map.set(p.sku, p.stock)
+    return map
+  }, [products])
+
+  const stockBySkuRef = useRef(stockBySku)
+  useEffect(() => {
+    stockBySkuRef.current = stockBySku
+  }, [stockBySku])
+
+  const pageKey = `${filtersKey}|${page}`
+
+  /* ── Fetch one page from the real backend ── */
+  useEffect(() => {
+    if (!useServerPaging) {
+      setServerPage(null)
+      setPageLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    const params: ProductPageParams = {
+      page,
+      size: pageSize,
+      sortBy: serverSort.sortBy,
+      sortDir: serverSort.sortDir,
+      ...(category !== 'all' ? { category: CATEGORY_ID_TO_CODE[category] } : {}),
+      ...(brands.length > 0 ? { brand: brands.join(',') } : {}),
+      ...BUDGET_PRICE_RANGE[budget],
+      ...(query.trim() ? { keyword: query.trim() } : {}),
+    }
+
+    setPageLoading(true)
+
+    api
+      .getProductsPage(params)
+      .then((res) => {
+        if (cancelled) return
+        const content = Array.isArray(res?.content) ? res.content : []
+        const stockMap = stockBySkuRef.current
+        const mapped = content.map((bp: any) => mapBackendProduct(bp, [], stockMap.get(bp.sku)))
+        const total = res.totalElements ?? mapped.length
+        const pages = Math.max(1, res.totalPages ?? 1)
+
+        // The current page may no longer exist after a delete: clamp back.
+        if (res.totalPages > 0 && page >= res.totalPages) {
+          setPager({ key: filtersKey, page: Math.max(0, res.totalPages - 1) })
+          return
+        }
+
+        setServerPage({ key: pageKey, products: mapped, totalElements: total, totalPages: pages })
+        pushLog({
+          method: 'GET',
+          path: `/api/v1/products/page?${buildProductPageQuery(params)}`,
+          status: 200,
+          detail: `${mapped.length} SP · trang ${(res.page ?? page) + 1}/${pages} · ${total} tổng`,
+        })
+      })
+      .catch(() => {
+        if (cancelled) return
+        // Graceful degradation: the grid falls back to the in-memory slice.
+        setServerPage(null)
+      })
+      .finally(() => {
+        if (!cancelled) setPageLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    useServerPaging,
+    page,
+    pageSize,
+    category,
+    brands,
+    budget,
+    query,
+    serverSort,
+    pageKey,
+    filtersKey,
+    pushLog,
+  ])
+
+  /* ── Grid data: server page when online, instant local slice otherwise ── */
+  const liveServerPage = useServerPaging && serverPage?.key === pageKey ? serverPage : null
+
+  const pagedProducts = useMemo(() => {
+    if (liveServerPage) {
+      // Re-attach the freshest stock so inventory edits show instantly.
+      return liveServerPage.products.map((p) => {
+        const stock = stockBySkuRef.current.get(p.sku)
+        return stock ? { ...p, stock } : p
+      })
+    }
+    return filteredProducts.slice(page * pageSize, (page + 1) * pageSize)
+  }, [liveServerPage, filteredProducts, page, pageSize, products])
+
+  const totalProducts = liveServerPage ? liveServerPage.totalElements : filteredProducts.length
+
+  const totalPages = liveServerPage
+    ? Math.max(1, liveServerPage.totalPages)
+    : Math.max(1, Math.ceil(filteredProducts.length / pageSize))
 
   /* ── Load data from backend ── */
   const reloadFromBackend = useCallback(async () => {
@@ -623,6 +828,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setTab,
     sort,
     setSort,
+    page,
+    pageSize,
+    pagedProducts,
+    totalProducts,
+    totalPages,
+    pageLoading,
+    setPage,
+    setPageSize,
     orderSku,
     startOrder,
     setOrderSku,

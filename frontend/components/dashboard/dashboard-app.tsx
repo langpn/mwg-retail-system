@@ -17,6 +17,9 @@ import {
   DollarSign,
   AlertTriangle,
   TrendingUp,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -293,8 +296,10 @@ function OverviewSection() {
 }
 
 /* ══════════════════════════════════════════
-   PRODUCTS CRUD
+   PRODUCTS CRUD (server-side pagination)
    ══════════════════════════════════════════ */
+const ADMIN_PAGE_SIZES = [5, 8, 15]
+
 function ProductsSection() {
   const [items, setItems] = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
@@ -302,17 +307,76 @@ function ProductsSection() {
   const [editing, setEditing] = useState<any | null>(null) // null = closed, {} = new, {id} = edit
   const [deleting, setDeleting] = useState<number | null>(null)
 
+  // Server-side pagination state
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(8)
+  const [totalElements, setTotalElements] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [loading, setLoading] = useState(false)
+
+  // Quick search + price sort (both executed on the server)
+  const [keywordDraft, setKeywordDraft] = useState('')
+  const [keyword, setKeyword] = useState('')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  // Debounce the search box so typing does not fire a request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setKeyword(keywordDraft.trim())
+      setPage(0)
+    }, 350)
+    return () => clearTimeout(t)
+  }, [keywordDraft])
+
   const load = useCallback(async () => {
+    setLoading(true)
     try {
-      const [p, c, b] = await Promise.all([productsApi.list(), productsApi.categories(), productsApi.brands()])
-      setItems(p)
+      const res = await productsApi.page({
+        page,
+        size: pageSize,
+        sortBy: 'price',
+        sortDir,
+        keyword: keyword || undefined,
+      })
+      const content = Array.isArray(res?.content) ? res.content : []
+      const pages = Math.max(1, res?.totalPages ?? 1)
+
+      // Deleting the last row of the last page: clamp back one page.
+      if (res && res.totalPages > 0 && page >= res.totalPages) {
+        setPage(res.totalPages - 1)
+        return
+      }
+
+      setItems(content)
+      setTotalElements(res?.totalElements ?? content.length)
+      setTotalPages(pages)
+    } catch {
+      /* offline */
+    } finally {
+      setLoading(false)
+    }
+  }, [page, pageSize, sortDir, keyword])
+
+  const loadOptions = useCallback(async () => {
+    try {
+      const [c, b] = await Promise.all([productsApi.categories(), productsApi.brands()])
       setCategories(c)
       setBrands(b)
-    } catch { /* offline */ }
+    } catch {
+      /* offline */
+    }
   }, [])
 
-  const didLoad = useRef(false)
-  useEffect(() => { if (!didLoad.current) { didLoad.current = true; load() } }, [load])
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const didLoadOptions = useRef(false)
+  useEffect(() => {
+    if (didLoadOptions.current) return
+    didLoadOptions.current = true
+    loadOptions()
+  }, [loadOptions])
 
   async function handleSave(data: any) {
     try {
@@ -323,7 +387,9 @@ function ProductsSection() {
       }
       setEditing(null)
       load()
-    } catch { alert('Lỗi lưu sản phẩm') }
+    } catch {
+      alert('Lỗi lưu sản phẩm')
+    }
   }
 
   async function handleDelete(id: number) {
@@ -331,12 +397,23 @@ function ProductsSection() {
       await productsApi.remove(id)
       setDeleting(null)
       load()
-    } catch { alert('Lỗi xóa sản phẩm') }
+    } catch {
+      alert('Lỗi xóa sản phẩm')
+    }
   }
+
+  const firstItem = totalElements === 0 ? 0 : page * pageSize + 1
+  const lastItem = Math.min((page + 1) * pageSize, totalElements)
+  const pageList = buildAdminPageList(page, totalPages)
 
   return (
     <div>
-      <SectionHeader title="Quản lý sản phẩm" count={items.length} onRefresh={load} onAdd={() => setEditing({})} />
+      <SectionHeader
+        title="Quản lý sản phẩm"
+        count={totalElements}
+        onRefresh={load}
+        onAdd={() => setEditing({})}
+      />
 
       {/* Modal */}
       {editing !== null && (
@@ -350,8 +427,109 @@ function ProductsSection() {
       )}
 
       {deleting !== null && (
-        <Confirm message="Bạn chắc chắn muốn xóa sản phẩm này?" onYes={() => handleDelete(deleting)} onNo={() => setDeleting(null)} />
+        <Confirm
+          message="Bạn chắc chắn muốn xóa sản phẩm này?"
+          onYes={() => handleDelete(deleting)}
+          onNo={() => setDeleting(null)}
+        />
       )}
+
+      {/* Toolbar: quick search · price sort · page size · range · pager */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border bg-card px-3 py-2.5">
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={keywordDraft}
+            onChange={(e) => setKeywordDraft(e.target.value)}
+            placeholder="Tìm theo tên, SKU…"
+            aria-label="Tìm kiếm sản phẩm"
+            className="h-8 w-56 rounded-lg border border-border bg-background pr-2 pl-8 text-xs focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+            setPage(0)
+          }}
+          className="flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-xs font-semibold hover:border-primary hover:text-primary"
+          title="Đảo chiều sắp xếp theo cột Giá"
+        >
+          Giá {sortDir === 'asc' ? '↑' : '↓'}
+        </button>
+
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="font-semibold">Hiển thị</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value))
+              setPage(0)
+            }}
+            aria-label="Số dòng mỗi trang"
+            className="h-8 cursor-pointer rounded-lg border border-border bg-background px-2 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+          >
+            {ADMIN_PAGE_SIZES.map((s) => (
+              <option key={s} value={s}>
+                {s} dòng/trang
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <span className="text-xs text-muted-foreground">
+          Hiển thị{' '}
+          <strong className="tabular font-bold text-foreground">
+            {firstItem} – {lastItem}
+          </strong>{' '}
+          / Tổng <strong className="tabular font-bold text-foreground">{totalElements}</strong> sản phẩm
+        </span>
+
+        {loading && <RefreshCw className="size-3.5 animate-spin text-primary" aria-label="Đang tải" />}
+
+        <nav aria-label="Chuyển trang sản phẩm" className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page <= 0}
+            className="flex h-8 items-center gap-0.5 rounded-lg border px-2 text-xs font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <ChevronLeft className="size-3.5" />
+            Trước
+          </button>
+          {pageList.map((entry, i) =>
+            entry === 'ellipsis' ? (
+              <span key={`gap-${i}`} className="px-1 text-xs text-muted-foreground" aria-hidden="true">
+                …
+              </span>
+            ) : (
+              <button
+                key={entry}
+                type="button"
+                onClick={() => setPage(entry)}
+                aria-current={entry === page ? 'page' : undefined}
+                className={`tabular size-8 rounded-lg text-xs font-bold ${
+                  entry === page
+                    ? 'bg-primary text-primary-foreground'
+                    : 'border hover:bg-muted'
+                }`}
+              >
+                {entry + 1}
+              </button>
+            ),
+          )}
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className="flex h-8 items-center gap-0.5 rounded-lg border px-2 text-xs font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Sau
+            <ChevronRight className="size-3.5" />
+          </button>
+        </nav>
+      </div>
 
       <div className="overflow-auto rounded-xl border bg-card">
         <table className="w-full text-sm">
@@ -362,7 +540,7 @@ function ProductsSection() {
               <th className="px-3 py-2 text-left">Tên sản phẩm</th>
               <th className="px-3 py-2 text-left">Danh mục</th>
               <th className="px-3 py-2 text-left">Thương hiệu</th>
-              <th className="px-3 py-2 text-right">Giá</th>
+              <th className="px-3 py-2 text-right">Giá {sortDir === 'asc' ? '↑' : '↓'}</th>
               <th className="px-3 py-2 text-center">Thao tác</th>
             </tr>
           </thead>
@@ -387,11 +565,34 @@ function ProductsSection() {
                 </td>
               </tr>
             ))}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
+                  {loading ? 'Đang tải…' : 'Không tìm thấy sản phẩm phù hợp'}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
     </div>
   )
+}
+
+/** Compact page list for the admin table (0-based indices). */
+function buildAdminPageList(current: number, total: number): (number | 'ellipsis')[] {
+  if (total <= 5) return Array.from({ length: total }, (_, i) => i)
+
+  const items: (number | 'ellipsis')[] = [0]
+  const start = Math.max(1, current - 1)
+  const end = Math.min(total - 2, current + 1)
+
+  if (start > 1) items.push('ellipsis')
+  for (let i = start; i <= end; i++) items.push(i)
+  if (end < total - 2) items.push('ellipsis')
+
+  items.push(total - 1)
+  return items
 }
 
 function ProductForm({
