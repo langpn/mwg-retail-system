@@ -104,6 +104,40 @@ function CheckoutContent() {
       if (customer.address) setStreetAddress((prev) => prev || customer.address || '')
     }
   }, [customer])
+
+  if (customer?.role === 'ADMIN') {
+    return (
+      <div className="flex min-h-screen flex-col bg-slate-50 text-foreground">
+        <AppHeader />
+        <main className="mx-auto flex w-full max-w-md flex-1 items-center justify-center p-4 py-16">
+          <div className="w-full rounded-2xl border border-border bg-card p-6 text-center shadow-lg">
+            <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
+              <ShieldCheck className="size-7" />
+            </div>
+            <h1 className="text-lg font-black text-foreground">Tài Khoản Quản Trị Viên</h1>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Tài khoản Quản trị viên chỉ phục vụ vận hành và theo dõi đơn hàng, không thực hiện đặt hàng trực tiếp.
+            </p>
+            <div className="mt-6 flex flex-col gap-2.5">
+              <Link
+                href="/dashboard"
+                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-extrabold text-white shadow-sm transition-all hover:bg-primary-deep"
+              >
+                Vào Bảng Quản Trị (Dashboard)
+              </Link>
+              <Link
+                href="/"
+                className="flex h-10 items-center justify-center rounded-xl border border-border bg-secondary/50 text-xs font-bold text-foreground transition-colors hover:bg-secondary"
+              >
+                Quay về trang chủ
+              </Link>
+            </div>
+          </div>
+        </main>
+        <SiteFooter />
+      </div>
+    )
+  }
   const [hasOtherRecipient, setHasOtherRecipient] = useState(false)
   const [otherName, setOtherName] = useState('')
   const [otherPhone, setOtherPhone] = useState('')

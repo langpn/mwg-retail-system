@@ -302,7 +302,9 @@ function BranchSelector() {
 }
 
 function CartButton() {
-  const { cartCount } = useStore()
+  const { cartCount, customer } = useStore()
+  if (customer?.role === 'ADMIN') return null
+
   return (
     <Link
       href="/cart"
@@ -389,12 +391,12 @@ function AccountDropdown() {
                 <>
                   <div className="mb-1 rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2.5">
                     <div className="flex items-center justify-between">
-                      <p className="truncate text-xs font-extrabold text-amber-950">{customer.fullName}</p>
+                      <p className="truncate text-xs font-extrabold text-amber-950">Ban Quản Trị Hệ Thống</p>
                       <span className="rounded-md bg-amber-200 px-1.5 py-0.5 text-[10px] font-black text-amber-900">
                         ADMIN
                       </span>
                     </div>
-                    <p className="text-[11px] font-medium text-amber-800">SĐT Quản trị: {customer.phone}</p>
+                    <p className="text-[11px] font-medium text-amber-800">admin@dmx.mwg.vn</p>
                   </div>
 
                   <div className="py-1">
@@ -405,15 +407,6 @@ function AccountDropdown() {
                     >
                       <Shield className="size-4 text-amber-600" />
                       Bảng điều khiển Quản trị (Admin)
-                    </Link>
-
-                    <Link
-                      href="/cart"
-                      onClick={() => setOpen(false)}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
-                    >
-                      <ShoppingBag className="size-4 text-muted-foreground" />
-                      Giỏ hàng của tôi
                     </Link>
 
                     <button

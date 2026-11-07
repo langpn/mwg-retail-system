@@ -138,7 +138,10 @@ function mapBackendProduct(bp: any, inventories: any[]): Product {
     category: CATEGORY_CODE_MAP[categoryCode] ?? 'small',
     brand: brandName as BrandId,
     price: bp.price,
-    listPrice: hardcoded?.listPrice ?? Math.round(bp.price * 1.25),
+    listPrice:
+      hardcoded?.listPrice && hardcoded.listPrice > bp.price && hardcoded.listPrice <= bp.price * 1.4
+        ? hardcoded.listPrice
+        : Math.round(bp.price * 1.15),
     specs: hardcoded?.specs ?? [bp.description ?? ''],
     image: hardcoded?.image ?? '/products/washer-front.png',
     stock,
