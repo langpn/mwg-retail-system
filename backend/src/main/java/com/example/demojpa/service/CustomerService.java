@@ -31,6 +31,10 @@ public class CustomerService {
         return customerRepo.findByPhone(phone);
     }
 
+    public Optional<Customer> findByEmail(String email) {
+        return customerRepo.findByEmail(email);
+    }
+
     public Customer createCustomer(Customer customer) {
         return customerRepo.save(customer);
     }

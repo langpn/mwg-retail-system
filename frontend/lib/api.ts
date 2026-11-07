@@ -35,6 +35,21 @@ export const api = {
   updateOrderStatus: (id: number, status: string) =>
     fetch(`${BASE}/orders/${id}/status?status=${status}`, { method: 'PUT' }).then((r) => r.json()),
 
+  /* ── Customers ── */
+  getCustomers: (phone?: string) =>
+    fetch(`${BASE}/customers${phone ? `?phone=${encodeURIComponent(phone)}` : ''}`).then((r) => {
+      if (!r.ok) throw new Error(`${r.status}`)
+      return r.json()
+    }),
+  getCustomerByPhone: (phone: string) =>
+    fetch(`${BASE}/customers/phone/${encodeURIComponent(phone)}`),
+  createCustomer: (body: { fullName: string; phone: string; email?: string; address?: string }) =>
+    fetch(`${BASE}/customers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+
   /* ── Health check ── */
   ping: () =>
     fetch(`${BASE}/products`, { signal: AbortSignal.timeout(3000) })

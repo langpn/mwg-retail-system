@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -88,13 +88,22 @@ function CheckoutContent() {
   const searchParams = useSearchParams()
   const initialPromo = searchParams.get('promo') || ''
 
-  const { cart, cartSubtotal, cartCount, placeCartOrder } = useStore()
+  const { cart, cartSubtotal, cartCount, placeCartOrder, customer } = useStore()
 
   // 1. Thông tin người đặt
   const [salutation, setSalutation] = useState<'Anh' | 'Chị'>('Anh')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+
+  useEffect(() => {
+    if (customer) {
+      setName((prev) => prev || customer.fullName)
+      setPhone((prev) => prev || customer.phone)
+      if (customer.email) setEmail((prev) => prev || customer.email || '')
+      if (customer.address) setStreetAddress((prev) => prev || customer.address || '')
+    }
+  }, [customer])
   const [hasOtherRecipient, setHasOtherRecipient] = useState(false)
   const [otherName, setOtherName] = useState('')
   const [otherPhone, setOtherPhone] = useState('')

@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST Controller: CustomerApiController
@@ -26,11 +27,28 @@ public class CustomerApiController {
 
     /**
      * GET /api/v1/customers
-     * Lấy toàn bộ danh sách khách hàng thành viên
+     * Lấy toàn bộ danh sách khách hàng thành viên (hoặc lọc theo số điện thoại)
      */
     @GetMapping
-    public ResponseEntity<List<Customer>> getAllCustomers() {
+    public ResponseEntity<List<Customer>> getAllCustomers(@RequestParam(required = false) String phone) {
+        if (phone != null && !phone.isBlank()) {
+            return ResponseEntity.ok(
+                    customerService.findByPhone(phone.trim())
+                            .map(List::of)
+                            .orElse(List.of()));
+        }
         return ResponseEntity.ok(customerService.getAllCustomers());
+    }
+
+    /**
+     * GET /api/v1/customers/phone/{phone}
+     * Tìm khách hàng thành viên theo số điện thoại
+     */
+    @GetMapping("/phone/{phone}")
+    public ResponseEntity<Customer> getCustomerByPhone(@PathVariable String phone) {
+        return customerService.findByPhone(phone.trim())
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
@@ -49,7 +67,14 @@ public class CustomerApiController {
      * Thêm mới một khách hàng vào hệ thống
      */
     @PostMapping
-    public ResponseEntity<Customer> createCustomer(@RequestBody Customer customer) {
+    public ResponseEntity<?> createCustomer(@RequestBody Customer customer) {
+        if (customer.getPhone() == null || customer.getPhone().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Số điện thoại không được để trống"));
+        }
+        if (customerService.findByPhone(customer.getPhone().trim()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", "Số điện thoại này đã được đăng ký thành viên"));
+        }
         Customer saved = customerService.createCustomer(customer);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }

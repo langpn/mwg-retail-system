@@ -23,6 +23,14 @@ export interface CartItem {
   quantity: number
 }
 
+export interface CustomerProfile {
+  id?: number
+  fullName: string
+  phone: string
+  email?: string
+  address?: string
+}
+
 export interface ApiLogEntry {
   id: number
   method: 'GET' | 'PUT' | 'POST' | 'PATCH'
@@ -87,6 +95,10 @@ interface StoreValue {
   cartCount: number
   cartSubtotal: number
   placeCartOrder: (input: CartCheckoutInput) => Promise<Order | { error: string }>
+  // Customer Authentication
+  customer: CustomerProfile | null
+  loginCustomer: (profile: CustomerProfile) => void
+  logoutCustomer: () => void
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
@@ -165,6 +177,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [sort, setSort] = useState<SortOption>('default')
   const [orderSku, setOrderSku] = useState(INITIAL_PRODUCTS[0].sku)
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null)
+
+  // Customer state with persistence
+  const [customer, setCustomer] = useState<CustomerProfile | null>(null)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('mwg_customer_v1')
+      if (saved) {
+        setCustomer(JSON.parse(saved))
+      }
+    } catch {}
+  }, [])
+
+  const loginCustomer = useCallback((profile: CustomerProfile) => {
+    setCustomer(profile)
+    try {
+      localStorage.setItem('mwg_customer_v1', JSON.stringify(profile))
+    } catch {}
+  }, [])
+
+  const logoutCustomer = useCallback(() => {
+    setCustomer(null)
+    try {
+      localStorage.removeItem('mwg_customer_v1')
+    } catch {}
+  }, [])
 
   // Cart state with persistence
   const [cart, setCart] = useState<CartItem[]>([
@@ -601,6 +639,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     cartCount,
     cartSubtotal,
     placeCartOrder,
+    customer,
+    loginCustomer,
+    logoutCustomer,
   }
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

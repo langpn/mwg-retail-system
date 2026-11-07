@@ -7,6 +7,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   LogIn,
+  LogOut,
   MapPin,
   Search,
   Shield,
@@ -320,7 +321,7 @@ function CartButton() {
 }
 
 function AccountDropdown() {
-  const { setTab } = useStore()
+  const { customer, logoutCustomer } = useStore()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -343,47 +344,94 @@ function AccountDropdown() {
           'flex h-10 items-center gap-2 rounded-full border px-3 text-xs font-bold transition-all',
           open
             ? 'border-primary bg-primary/10 text-primary'
-            : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-secondary',
+            : customer
+              ? 'border-emerald-500/40 bg-emerald-50/60 text-emerald-900 hover:border-emerald-500'
+              : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-secondary',
         )}
       >
-        <span className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <User className="size-4" aria-hidden="true" />
+        <span
+          className={cn(
+            'flex size-7 items-center justify-center rounded-full text-xs font-bold',
+            customer ? 'bg-emerald-600 text-white' : 'bg-primary/10 text-primary',
+          )}
+        >
+          {customer ? customer.fullName.charAt(0).toUpperCase() : <User className="size-4" aria-hidden="true" />}
         </span>
-        <span className="hidden sm:inline">Tài khoản</span>
+        <span className="hidden max-w-[120px] truncate sm:inline">
+          {customer ? customer.fullName : 'Tài khoản'}
+        </span>
         <ChevronDown className={cn('size-3.5 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 overflow-hidden rounded-xl border border-border bg-card p-2 shadow-xl animate-in fade-in zoom-in-95"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 overflow-hidden rounded-xl border border-border bg-card p-2 shadow-xl animate-in fade-in zoom-in-95"
         >
-          <div className="border-b border-border px-3 py-2.5">
-            <p className="text-xs font-bold text-foreground">Chào mừng quý khách</p>
-            <p className="text-[11px] text-muted-foreground">Thành viên Điện Máy Xanh</p>
-          </div>
+          {customer ? (
+            <>
+              <div className="mb-1 rounded-lg border border-emerald-200/60 bg-emerald-50/70 px-3 py-2.5">
+                <p className="truncate text-xs font-extrabold text-foreground">{customer.fullName}</p>
+                <p className="text-[11px] font-medium text-muted-foreground">SĐT: {customer.phone}</p>
+                {customer.email && <p className="truncate text-[11px] text-muted-foreground">{customer.email}</p>}
+                <span className="mt-1.5 inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                  Thành viên CSDL MySQL
+                </span>
+              </div>
 
-          <div className="py-1.5">
-            <Link
-              href="/auth"
-              onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-            >
-              <LogIn className="size-4 text-primary" />
-              Đăng nhập / Đăng ký
-            </Link>
+              <div className="py-1">
+                <Link
+                  href="/cart"
+                  onClick={() => setOpen(false)}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+                >
+                  <ShoppingBag className="size-4 text-muted-foreground" />
+                  Giỏ hàng của tôi
+                </Link>
 
-            <Link
-              href="/cart"
-              onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
-            >
-              <ShoppingBag className="size-4 text-muted-foreground" />
-              Giỏ hàng của tôi
-            </Link>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    logoutCustomer()
+                    setOpen(false)
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50"
+                >
+                  <LogOut className="size-4 text-rose-500" />
+                  Đăng xuất tài khoản
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="border-b border-border px-3 py-2.5">
+                <p className="text-xs font-bold text-foreground">Chào mừng quý khách</p>
+                <p className="text-[11px] text-muted-foreground">Thành viên Điện Máy Xanh</p>
+              </div>
 
-          <div className="border-t border-border pt-1.5">
+              <div className="py-1.5">
+                <Link
+                  href="/auth"
+                  onClick={() => setOpen(false)}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                >
+                  <LogIn className="size-4 text-primary" />
+                  Đăng nhập / Đăng ký
+                </Link>
+
+                <Link
+                  href="/cart"
+                  onClick={() => setOpen(false)}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+                >
+                  <ShoppingBag className="size-4 text-muted-foreground" />
+                  Giỏ hàng của tôi
+                </Link>
+              </div>
+            </>
+          )}
+
+          <div className="mt-1 border-t border-border pt-1.5">
             <p className="px-3 py-1 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
               Cổng Quản Trị Hệ Thống
             </p>
