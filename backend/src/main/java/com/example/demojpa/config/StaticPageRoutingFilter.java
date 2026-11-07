@@ -20,7 +20,7 @@ import java.io.IOException;
  *   "/product/DMX-TV-001" -> Spring Boot khong tim thay file tuong ung -> tra ve 404.
  *
  * GIAI PHAP:
- *   Filter nay chi lam MOT viec duy nhat: voi moi request GET khong co duoi file,
+ *   Filter nay chi lam MOT viec duy nhat: voi moi request GET/HEAD khong co duoi file,
  *   thu tim file "<uri>.html" trong classpath:/static/.
  *     - Neu TIM THAY  -> forward noi bo toi file .html do (trinh duyet van giu URL sach).
  *     - Neu KHONG THAY -> tra request ve cho chuoi filter tiep theo, de Spring xu ly
@@ -55,8 +55,10 @@ public class StaticPageRoutingFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
 
-        // Chi xu ly GET: PUT/POST/DELETE cua REST API khong lien quan toi trang tinh.
-        if ("GET".equalsIgnoreCase(request.getMethod())) {
+        // Chi xu ly GET va HEAD: PUT/POST/DELETE cua REST API khong lien quan toi trang tinh.
+        // HEAD can thiet vi Next.js router gui HEAD de kiem tra truoc (prefetch) cac <Link>.
+        String method = request.getMethod();
+        if ("GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method)) {
             String htmlPage = resolveHtmlPage(request.getRequestURI());
             if (htmlPage != null) {
                 // Forward noi bo: trinh duyet van hien "localhost:8088/cart"
