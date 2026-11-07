@@ -8,6 +8,7 @@ import {
   Check,
   CheckCircle2,
   MapPin,
+  Package,
   Phone,
   ShieldCheck,
   ShoppingBag,
@@ -192,6 +193,13 @@ function CheckoutContent() {
             </div>
 
             <div className="flex flex-col gap-2.5 sm:flex-row">
+              <Link
+                href="/orders"
+                className="flex flex-1 h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-card text-xs font-bold text-foreground transition-all hover:bg-secondary"
+              >
+                <Package className="size-3.5 text-primary" />
+                <span>Xem đơn hàng vừa đặt</span>
+              </Link>
               <Link
                 href="/"
                 className="flex flex-1 h-11 items-center justify-center rounded-xl bg-primary text-xs font-bold text-white shadow-sm transition-all hover:bg-primary-deep"
