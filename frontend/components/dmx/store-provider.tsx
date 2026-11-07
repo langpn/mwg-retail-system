@@ -2,8 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  INITIAL_ORDERS,
-  INITIAL_PRODUCTS,
   matchesBudget,
   type BranchId,
   type BrandId,
@@ -116,8 +114,8 @@ const BUDGET_PRICE_RANGE: Record<BudgetId, { minPrice?: number; maxPrice?: numbe
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS)
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS)
+  const [products, setProducts] = useState<Product[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [branchId, setBranchId] = useState<BranchId>('q9')
   const [category, setCategory] = useState<CategoryId>('all')
   const [brands, setBrands] = useState<BrandId[]>([])
@@ -363,11 +361,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setBackendConnected(null)
     try {
       const catalog = await catalogAdapter(connected).load()
-      if (catalog.products.length > 0) setProducts(catalog.products)
-      if (catalog.orders.length > 0) setOrders(catalog.orders)
+      setProducts(catalog.products)
+      setOrders(catalog.orders)
     } catch {
-      setProducts((prev) => (prev.length > 0 ? prev : INITIAL_PRODUCTS))
-      setOrders((prev) => (prev.length > 0 ? prev : INITIAL_ORDERS))
+      setProducts([])
+      setOrders([])
     }
     setBackendConnected(connected)
   }, [])
