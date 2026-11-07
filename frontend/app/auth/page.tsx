@@ -6,14 +6,12 @@ import { useRouter } from 'next/navigation'
 import {
   AlertCircle,
   CheckCircle2,
-  Eye,
-  EyeOff,
   Loader2,
-  Lock,
   LogIn,
   MapPin,
   Phone,
   ShieldCheck,
+  Sparkles,
   User,
   UserPlus,
 } from 'lucide-react'
@@ -32,24 +30,21 @@ export default function AuthPage() {
 
 function AuthContent() {
   const router = useRouter()
-  const { loginCustomer, customer } = useStore()
+  const { loginCustomer } = useStore()
 
   const [mode, setMode] = useState<'login' | 'register'>('login')
-  const [showPassword, setShowPassword] = useState(false)
   const [notification, setNotification] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Login form state
+  // Login form state (tra cứu trực tiếp theo SĐT / Email trong MySQL)
   const [loginIdentifier, setLoginIdentifier] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
 
-  // Register form state
+  // Register form state (khớp 100% các cột bảng customers: full_name, phone, email, address)
   const [regName, setRegName] = useState('')
   const [regPhone, setRegPhone] = useState('')
   const [regEmail, setRegEmail] = useState('')
   const [regAddress, setRegAddress] = useState('')
-  const [regPassword, setRegPassword] = useState('')
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -58,7 +53,7 @@ function AuthContent() {
 
     const identifier = loginIdentifier.trim()
     if (!identifier) {
-      setError('Vui lòng nhập số điện thoại hoặc email.')
+      setError('Vui lòng nhập số điện thoại thành viên.')
       return
     }
 
@@ -182,7 +177,7 @@ function AuthContent() {
       }
     } catch {}
 
-    // Fallback nếu server chưa có
+    // Fallback nếu server chưa phản hồi
     loginCustomer({
       id: 1,
       fullName: 'Nguyễn Văn An',
@@ -212,7 +207,7 @@ function AuthContent() {
           <div className="border-b border-border bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-5 text-center">
             <h1 className="text-lg font-black text-foreground">Thành Viên Điện Máy Xanh</h1>
             <p className="mt-1 text-xs text-muted-foreground">
-              Tích điểm mua sắm, tra cứu bảo hành và nhận ưu đãi độc quyền
+              Nhận diện thành viên qua Số điện thoại để tích điểm và bảo hành
             </p>
           </div>
 
@@ -284,44 +279,20 @@ function AuthContent() {
                       className="h-11 w-full rounded-xl border border-border bg-card pr-4 pl-10 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
                     />
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    💡 Khách hàng mẫu đã có trong CSDL: <span className="font-semibold text-foreground">0901234567</span>
-                  </p>
-                </div>
-
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <label className="text-xs font-bold text-foreground">Mật khẩu</label>
-                    <span className="text-[11px] font-semibold text-primary hover:underline cursor-pointer">
-                      Quên mật khẩu?
-                    </span>
-                  </div>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder="•••••••• (tùy chọn trong bản Demo)"
-                      className="h-11 w-full rounded-xl border border-border bg-card pr-11 pl-10 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((s) => !s)}
-                      className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                    </button>
+                  <div className="mt-2 rounded-lg bg-secondary/50 p-2.5 text-[11px] text-muted-foreground">
+                    💡 <span className="font-semibold text-foreground">Chuẩn Điện Máy Xanh:</span> Khách hàng chỉ cần nhập Số điện thoại, hệ thống sẽ tự động tra cứu hồ sơ và tích điểm trong CSDL MySQL.
+                    <br />
+                    Tài khoản mẫu có sẵn trong database: <span className="font-bold text-primary">0901234567</span>
                   </div>
                 </div>
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="mt-2 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-extrabold text-white shadow-sm transition-all hover:bg-primary-deep disabled:opacity-50"
+                  className="mt-1 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-extrabold text-white shadow-sm transition-all hover:bg-primary-deep disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
-                  Đăng nhập thành viên
+                  Đăng nhập bằng Số điện thoại
                 </button>
 
                 <div className="relative my-2 text-center">
@@ -409,21 +380,14 @@ function AuthContent() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-foreground">Mật khẩu khởi tạo</label>
-                  <input
-                    type="password"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="h-10 w-full rounded-xl border border-border bg-card px-3 text-sm font-medium focus:border-primary focus:ring-4 focus:ring-primary/15 focus:outline-none"
-                  />
+                <div className="rounded-lg bg-emerald-50/70 border border-emerald-200/60 p-2.5 text-[11px] text-emerald-800">
+                  <span className="font-bold">✓ CSDL MySQL:</span> Thông tin sẽ được lưu trực tiếp vào bảng <code className="font-mono font-bold">customers</code> qua REST API <code className="font-mono">POST /api/v1/customers</code>.
                 </div>
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="mt-2 flex h-11 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-extrabold text-foreground shadow-sm transition-all hover:bg-amber-400 disabled:opacity-50"
+                  className="mt-1 flex h-11 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-extrabold text-foreground shadow-sm transition-all hover:bg-amber-400 disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
                   Đăng ký lưu vào MySQL
