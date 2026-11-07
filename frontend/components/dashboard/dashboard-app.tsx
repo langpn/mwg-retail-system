@@ -18,6 +18,10 @@ import {
   AlertTriangle,
   TrendingUp,
   Lock,
+  Store,
+  LogOut,
+  Home,
+  ExternalLink,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -151,11 +155,28 @@ export function DashboardApp() {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
-      <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col border-r border-border bg-card">
-        <div className="border-b border-border px-4 py-4">
-          <h1 className="text-sm font-bold text-primary">ĐMX Dashboard</h1>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">Quản trị hệ thống</p>
+      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-border bg-card">
+        <div className="border-b border-border px-4 py-3.5">
+          <div className="flex items-center justify-between">
+            <h1 className="text-sm font-black text-primary">ĐMX Dashboard</h1>
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-800">
+              ADMIN
+            </span>
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Hệ Thống Bán Lẻ Đa Chi Nhánh</p>
         </div>
+
+        {/* Nút to rõ quay về Trang chủ Cửa hàng */}
+        <div className="border-b border-border p-2.5 bg-primary/5">
+          <Link
+            href="/"
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-xs font-extrabold text-white shadow-sm transition-all hover:bg-primary-deep"
+          >
+            <Store className="size-4" />
+            Về Cửa Hàng (Trang chủ)
+          </Link>
+        </div>
+
         <nav className="flex-1 space-y-0.5 p-2">
           {NAV.map((n) => (
             <button
@@ -163,7 +184,7 @@ export function DashboardApp() {
               onClick={() => setSection(n.id)}
               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 section === n.id
-                  ? 'bg-primary text-primary-foreground'
+                  ? 'bg-primary text-primary-foreground font-bold shadow-xs'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
@@ -172,30 +193,82 @@ export function DashboardApp() {
             </button>
           ))}
         </nav>
+
         <div className="border-t border-border p-3">
           <Link
             href="/"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <ArrowLeft className="size-4" />
-            Về trang chính
+            Quay lại trang mua hàng
           </Link>
           <div className="mt-2 flex items-center gap-1.5 px-3 text-xs">
             <span className={`size-2 rounded-full ${connected === true ? 'bg-emerald-500' : connected === false ? 'bg-amber-500' : 'bg-slate-400'}`} />
-            {connected === true ? 'API: Connected' : connected === false ? 'API: Offline' : 'API: Đang kiểm tra...'}
+            <span className="text-[11px] text-muted-foreground">
+              {connected === true ? 'MySQL API: Kết nối tốt' : connected === false ? 'MySQL API: Offline' : 'Đang kiểm tra...'}
+            </span>
           </div>
         </div>
       </aside>
 
-      {/* Content */}
-      <main className="flex-1 overflow-auto p-6">
-        {section === 'overview' && <OverviewSection />}
-        {section === 'products' && <ProductsSection />}
-        {section === 'orders' && <OrdersSection />}
-        {section === 'customers' && <CustomersSection />}
-        {section === 'promotions' && <PromotionsSection />}
-        {section === 'reviews' && <ReviewsSection />}
-      </main>
+      {/* Main Content Area */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Topbar điều hướng trên cùng */}
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-border bg-card/90 px-6 backdrop-blur">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span>Bảng Quản Trị</span>
+            <span>/</span>
+            <span className="font-bold text-foreground">
+              {NAV.find((n) => n.id === section)?.label}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-secondary/60 px-3 py-1.5 text-xs font-bold text-foreground transition-colors hover:border-primary hover:text-primary"
+            >
+              <Store className="size-3.5 text-primary" />
+              <span>Xem Cửa Hàng (Trang chủ)</span>
+              <ExternalLink className="size-3 text-muted-foreground" />
+            </Link>
+
+            <div className="h-4 w-px bg-border" />
+
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-full bg-amber-500/15 text-xs font-bold text-amber-800">
+                👑
+              </span>
+              <span className="text-xs font-bold text-foreground">Quản trị viên</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  localStorage.removeItem('mwg_customer_v1')
+                } catch {}
+                setIsAdmin(false)
+              }}
+              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50"
+              title="Đăng xuất khỏi quyền Quản trị viên"
+            >
+              <LogOut className="size-3.5" />
+              <span>Đăng xuất</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Content body */}
+        <main className="flex-1 overflow-auto p-6">
+          {section === 'overview' && <OverviewSection />}
+          {section === 'products' && <ProductsSection />}
+          {section === 'orders' && <OrdersSection />}
+          {section === 'customers' && <CustomersSection />}
+          {section === 'promotions' && <PromotionsSection />}
+          {section === 'reviews' && <ReviewsSection />}
+        </main>
+      </div>
     </div>
   )
 }
