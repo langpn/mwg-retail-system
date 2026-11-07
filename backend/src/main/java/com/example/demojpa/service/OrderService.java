@@ -1,7 +1,7 @@
 package com.example.demojpa.service;
 
 import com.example.demojpa.dto.CreateOrderRequest;
-import com.example.demojpa.dto.OrderItemRequest;
+import com.example.demojpa.dto.OrderQuote;
 import com.example.demojpa.entity.*;
 import com.example.demojpa.repository.*;
 import org.springframework.stereotype.Service;
@@ -23,6 +23,7 @@ public class OrderService {
     private final PromotionRepository promoRepo;
     private final ProductRepository productRepo;
     private final InventoryRepository inventoryRepo;
+    private final OrderPricingService pricingService;
 
     public OrderService(
             CustomerOrderRepository orderRepo,
@@ -30,7 +31,8 @@ public class OrderService {
             CustomerRepository customerRepo,
             PromotionRepository promoRepo,
             ProductRepository productRepo,
-            InventoryRepository inventoryRepo
+            InventoryRepository inventoryRepo,
+            OrderPricingService pricingService
     ) {
         this.orderRepo = orderRepo;
         this.orderItemRepo = orderItemRepo;
@@ -38,19 +40,31 @@ public class OrderService {
         this.promoRepo = promoRepo;
         this.productRepo = productRepo;
         this.inventoryRepo = inventoryRepo;
+        this.pricingService = pricingService;
     }
 
     public List<CustomerOrder> getAllOrders() {
-        return orderRepo.findAll();
+        return orderRepo.findAllWithDetails();
     }
 
     public Optional<CustomerOrder> getOrderById(Long id) {
-        return orderRepo.findById(id);
+        return orderRepo.findByIdWithDetails(id);
     }
 
     @Transactional
     public CustomerOrder createOrder(CreateOrderRequest req) {
-        // 1. Tìm hoặc tạo mới khách hàng qua số điện thoại
+        // Tính báo giá và kiểm tra sản phẩm, khuyến mãi, tồn kho trước khi ghi dữ liệu.
+        OrderQuote quote = pricingService.quote(req);
+
+        // Yêu cầu thêm cho createOrder: tên khách và số điện thoại không được trống
+        if (req.getCustomerName() == null || req.getCustomerName().isBlank()) {
+            throw new IllegalArgumentException("Tên khách hàng không được để trống");
+        }
+        if (req.getPhone() == null || req.getPhone().isBlank()) {
+            throw new IllegalArgumentException("Số điện thoại không được để trống");
+        }
+
+        // 2. Tìm hoặc tạo mới khách hàng qua số điện thoại
         Customer customer = customerRepo.findByPhone(req.getPhone())
                 .orElseGet(() -> customerRepo.save(new Customer(
                         req.getCustomerName(),
@@ -59,62 +73,41 @@ public class OrderService {
                         req.getShippingAddress()
                 )));
 
-        // 2. Kiểm tra mã khuyến mãi (nếu có)
+        // 3. Tra cứu Promotion entity để gắn vào đơn hàng (nếu có)
         Promotion promotion = null;
-        double discountPercent = 0.0;
-        if (req.getPromoCode() != null && !req.getPromoCode().trim().isEmpty()) {
-            Optional<Promotion> promoOpt = promoRepo.findByPromoCodeAndIsActiveTrue(req.getPromoCode());
-            if (promoOpt.isPresent()) {
-                promotion = promoOpt.get();
-                discountPercent = promotion.getDiscountPercent();
-            }
+        if (quote.getPromoApplied() && quote.getPromoCode() != null) {
+            promotion = promoRepo.findByPromoCodeAndIsActiveTrue(quote.getPromoCode()).orElse(null);
         }
 
-        // 3. Tạo đối tượng đơn hàng ban đầu
+        // 4. Tạo đơn hàng với tổng tiền từ báo giá (nguồn sự thật duy nhất)
         CustomerOrder order = new CustomerOrder(
                 req.getCustomerName(),
                 req.getPhone(),
-                req.getShippingAddress(),
-                0.0,
+                req.getShippingAddress() != null ? req.getShippingAddress() : "",
+                quote.getTotal(),
                 customer,
                 promotion
         );
         order = orderRepo.save(order);
 
-        // 4. Tính toán chi tiết các món hàng và trừ tồn kho
-        double total = 0.0;
-        if (req.getItems() != null) {
-            for (OrderItemRequest itemReq : req.getItems()) {
-                Product product = productRepo.findById(itemReq.getProductId())
-                        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm ID: " + itemReq.getProductId()));
+        // 5. Lưu từng OrderItem và trừ tồn kho, dùng giá từ báo giá
+        for (OrderQuote.QuoteItem qi : quote.getItems()) {
+            Product product = productRepo.findById(qi.getProductId()).orElseThrow();
+            int qty = qi.getQuantity();
 
-                int qty = itemReq.getQuantity() != null && itemReq.getQuantity() > 0 ? itemReq.getQuantity() : 1;
-                double itemPrice = product.getPrice();
-                total += itemPrice * qty;
-
-                // Trừ số lượng tồn kho tại chi nhánh nếu có branchId (ném ngoại lệ nếu không đủ hàng)
-                if (req.getBranchId() != null) {
-                    Optional<Inventory> invOpt = inventoryRepo.findByProduct_IdAndStoreBranch_Id(product.getId(), req.getBranchId());
-                    if (invOpt.isEmpty() || invOpt.get().getQuantity() < qty) {
-                        throw new IllegalArgumentException("Sản phẩm '" + product.getName() + "' không đủ tồn kho tại chi nhánh đã chọn (còn " + (invOpt.map(Inventory::getQuantity).orElse(0)) + ")");
-                    }
-                    Inventory inv = invOpt.get();
-                    inv.setQuantity(inv.getQuantity() - qty);
-                    inventoryRepo.save(inv);
-                }
-
-                // Lưu OrderItem và cập nhật danh sách orderItems của order
-                OrderItem item = new OrderItem(order, product, qty, itemPrice);
-                OrderItem savedItem = orderItemRepo.save(item);
-                order.getOrderItems().add(savedItem);
+            // Trừ tồn kho tại chi nhánh nếu có branchId
+            if (req.getBranchId() != null) {
+                Inventory inv = inventoryRepo
+                        .findByProduct_IdAndStoreBranch_Id(product.getId(), req.getBranchId())
+                        .orElseThrow();
+                inv.setQuantity(inv.getQuantity() - qty);
+                inventoryRepo.save(inv);
             }
-        }
 
-        // 5. Áp dụng chiết khấu khuyến mãi (nếu có)
-        if (discountPercent > 0.0) {
-            total = total * (1.0 - (discountPercent / 100.0));
+            OrderItem item = new OrderItem(order, product, qty, qi.getUnitPrice());
+            OrderItem saved = orderItemRepo.save(item);
+            order.getOrderItems().add(saved);
         }
-        order.setTotalAmount(total);
 
         return orderRepo.save(order);
     }

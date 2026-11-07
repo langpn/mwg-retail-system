@@ -1,6 +1,6 @@
-# 03. Đặc Tả Danh Mục 27 RESTful API Endpoints
+# 03. Đặc Tả Danh Mục 34 RESTful API Endpoints
 
-> **Chủ đề nguyên tử (Atomic Scope):** Nguồn sự thật duy nhất (Single Source of Truth) về toàn bộ **27 RESTful API Endpoints** của 6 Controller nghiệp vụ trong `mwg-retail-system`, đối chiếu đúng 100% với mã nguồn thực tế và chuẩn thiết kế Web Service của giảng viên.
+> **Chủ đề nguyên tử (Atomic Scope):** Danh mục **34 RESTful API Endpoints** của 6 Controller nghiệp vụ trong `mwg-retail-system`, đối chiếu với mã nguồn và chuẩn thiết kế Web Service của giảng viên.
 >
 > **Không chứa:** Thiết kế bảng CSDL (xem [`02-database-erd-10-tables.md`](./02-database-erd-10-tables.md)).
 
@@ -18,7 +18,7 @@
 
 ---
 
-## 2. Bảng Tổng Hợp Toàn Bộ 27 REST API Endpoints
+## 2. Bảng Tổng Hợp Toàn Bộ 34 REST API Endpoints
 
 ### 2.1. Phân hệ 1: Sản phẩm, Danh mục & Thương hiệu (`ProductApiController` — 8 APIs)
 
@@ -33,13 +33,14 @@
 | 6 | `PUT` | `/api/v1/products/{id}` | Path: `id`, Body JSON: `Product` | Cập nhật thông tin/giá bán của sản phẩm hiện có | `200` / `404` |
 | 7 | `DELETE` | `/api/v1/products/{id}` | Path: `id` (`Long`) | Xóa một sản phẩm theo ID | `204` / `404` |
 
-### 2.2. Phân hệ 2A: Siêu thị Chi nhánh & Tồn kho (`InventoryApiController` — 4 APIs)
+### 2.2. Phân hệ 2A: Siêu thị Chi nhánh & Tồn kho (`InventoryApiController` — 5 APIs)
 
 | # | Method | Endpoint | Tham số (`Path` / `Query` / `Body`) | Mô tả nghiệp vụ | Status |
 | :-: | :---: | :--- | :--- | :--- | :---: |
 | 8 | `GET` | `/api/v1/inventory/branches` | *(Không)* | Lấy danh sách tất cả chi nhánh siêu thị Điện Máy Xanh | `200` |
 | 9 | `GET` | `/api/v1/inventory/check` | Query bắt buộc: `sku`, `district` | Kiểm tra nhanh tồn kho của 1 mã SKU tại địa bàn quận/huyện | `200` / `404` |
 | 10 | `GET` | `/api/v1/inventory/branch/{branchId}` | Path: `branchId` (`Long`) | Lấy bảng ma trận tồn kho tất cả mặt hàng tại 1 chi nhánh | `200` |
+| 10b | `GET` | `/api/v1/inventory/stock-matrix` | *(Không)* | Danh sách phẳng `productId`, `sku`, `branchId`, `quantity` của mọi chi nhánh | `200` |
 | 11 | `PUT` | `/api/v1/inventory/update` | Body JSON: `StockUpdateRequest` (`productId`, `branchId`, `quantity`) | Điều chỉnh/nhập kho số lượng tồn thực tế tại siêu thị | `200` |
 
 ### 2.3. Phân hệ 2B: Đánh giá Sản phẩm (`ProductReviewApiController` — 4 APIs)
@@ -51,28 +52,33 @@
 | 14 | `POST` | `/api/v1/reviews` | Body JSON: `ProductReview` | Khách hàng gửi đánh giá mới (1–5 sao + nhận xét) | `201` |
 | 15 | `DELETE` | `/api/v1/reviews/{id}` | Path: `id` (`Long`) | Quản trị viên xóa đánh giá vi phạm/spam | `204` |
 
-### 2.4. Phân hệ 3A: Đơn đặt hàng & Khấu trừ tồn kho (`OrderApiController` — 4 APIs)
+### 2.4. Phân hệ 3A: Đơn đặt hàng & Khấu trừ tồn kho (`OrderApiController` — 5 APIs)
 
 | # | Method | Endpoint | Tham số (`Path` / `Query` / `Body`) | Mô tả nghiệp vụ | Status |
 | :-: | :---: | :--- | :--- | :--- | :---: |
 | 16 | `GET` | `/api/v1/orders` | *(Không)* | Lấy danh sách toàn bộ đơn đặt hàng trong hệ thống | `200` |
 | 17 | `GET` | `/api/v1/orders/{id}` | Path: `id` (`Long`) | Xem chi tiết 1 đơn hàng kèm danh sách món `orderItems` | `200` / `404` |
+| 17b | `POST` | `/api/v1/orders/quote` | Body JSON: `CreateOrderRequest` (không bắt buộc tên, điện thoại, địa chỉ) | Tính tiền, kiểm tra tồn kho nếu có chi nhánh, không ghi dữ liệu | `200` / `400` |
 | 18 | `POST` | `/api/v1/orders` | Body JSON: `CreateOrderRequest` | Tạo đơn hàng mới, áp mã giảm giá & **tự động trừ tồn kho** (`@Transactional`) | `201` / `400` |
 | 19 | `PUT` | `/api/v1/orders/{id}/status` | Path: `id`, Query: `status` (`PENDING`/`CONFIRMED`/`COMPLETED`/`CANCELLED`) | Nhân viên duyệt / cập nhật trạng thái xử lý đơn hàng | `200` |
 
-### 2.5. Phân hệ 3B: Khách hàng Thành viên (`CustomerApiController` — 5 APIs)
+### 2.5. Phân hệ 3B: Khách hàng Thành viên (`CustomerApiController` — 7 APIs)
 
 | # | Method | Endpoint | Tham số (`Path` / `Query` / `Body`) | Mô tả nghiệp vụ | Status |
 | :-: | :---: | :--- | :--- | :--- | :---: |
-| 20 | `GET` | `/api/v1/customers` | *(Không)* | Lấy danh sách tất cả khách hàng thành viên | `200` |
+| 20 | `GET` | `/api/v1/customers` | Query tùy chọn: `phone` | Lấy danh sách khách hàng thành viên hoặc lọc theo điện thoại | `200` |
+| 20a | `GET` | `/api/v1/customers/lookup` | Query: `identifier` | Tra cứu một khách hàng theo điện thoại hoặc email (không phân biệt hoa thường) | `200` / `400` / `404` |
+| 20b | `GET` | `/api/v1/customers/phone/{phone}` | Path: `phone` | Tra cứu một khách hàng theo số điện thoại | `200` / `404` |
 | 21 | `GET` | `/api/v1/customers/{id}` | Path: `id` (`Long`) | Tra cứu hồ sơ chi tiết 1 khách hàng | `200` / `404` |
 | 22 | `POST` | `/api/v1/customers` | Body JSON: `Customer` | Đăng ký mới hồ sơ khách hàng | `201` |
 | 23 | `PUT` | `/api/v1/customers/{id}` | Path: `id`, Body JSON: `Customer` | Cập nhật thông tin liên hệ / địa chỉ khách hàng | `200` |
 | 24 | `DELETE` | `/api/v1/customers/{id}` | Path: `id` (`Long`) | Xóa hồ sơ khách hàng | `204` |
 
-### 2.6. Phân hệ 3C: Chương trình Khuyến mãi (`PromotionApiController` — 5 APIs — Tổng cộng 29 routes / 27 nghiệp vụ cốt lõi)
+### 2.6. Phân hệ 3C: Chương trình Khuyến mãi (`PromotionApiController` — 5 APIs)
 
-*(Ghi chú: Tính đủ từng route độc lập trên 6 Controller là **29 endpoints** — gồm 7 Product + 4 Inventory + 4 Review + 4 Order + 5 Customer + 5 Promotion).*
+*(Tổng cộng **34 endpoints**: 8 Product + 5 Inventory + 4 Review + 5 Order + 7 Customer + 5 Promotion.)*
+
+`Promotion.maxDiscountAmount` là mức giảm tối đa bằng VNĐ, có thể `null` nếu không giới hạn. Mã `TET2027` có mức tối đa 1.500.000 VNĐ; `MWG5` không giới hạn.
 
 | # | Method | Endpoint | Tham số (`Path` / `Query` / `Body`) | Mô tả nghiệp vụ | Status |
 | :-: | :---: | :--- | :--- | :--- | :---: |

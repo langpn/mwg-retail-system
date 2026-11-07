@@ -1,8 +1,8 @@
 {
 	"info": {
 		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-		"name": "MWG Retail System - REST API Collection (29 Endpoints)",
-		"description": "Bộ Postman Collection 29 RESTful API Endpoints cho Hệ Thống Bán Lẻ Điện Máy Xanh (MWG Retail System) phục vụ báo cáo và bảo vệ đồ án tốt nghiệp / môn học IUH.\n\nBao gồm 6 phân hệ nghiệp vụ:\n1. Product Catalog (Sản phẩm, Danh mục & Thương hiệu) - 7 APIs\n2. Inventory & Branches (Tồn kho & Siêu thị chi nhánh) - 4 APIs\n3. Product Reviews (Đánh giá sản phẩm) - 4 APIs\n4. Orders & Checkout (Đơn đặt hàng & Khấu trừ tồn kho) - 4 APIs\n5. Customers (Khách hàng thành viên) - 5 APIs\n6. Promotions (Chương trình khuyến mãi & Mã giảm giá) - 5 APIs\n\nTổng cộng: 29 Endpoints chuẩn HTTP Verbs (GET, POST, PUT, DELETE).",
+		"name": "MWG Retail System - REST API Collection (34 Endpoints)",
+		"description": "Bộ Postman Collection 34 RESTful API Endpoints cho Hệ Thống Bán Lẻ Điện Máy Xanh (MWG Retail System).\n\nBao gồm 6 phân hệ nghiệp vụ:\n1. Product Catalog - 8 APIs\n2. Inventory & Branches - 5 APIs\n3. Product Reviews - 4 APIs\n4. Orders & Checkout - 5 APIs\n5. Customers - 7 APIs\n6. Promotions - 5 APIs\n\nTổng cộng: 34 Endpoints chuẩn HTTP Verbs (GET, POST, PUT, DELETE).",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
@@ -274,7 +274,7 @@
 		},
 		{
 			"name": "02 - Inventory & Branches (Tồn kho & Siêu thị)",
-			"description": "Phân hệ 2A: Quản lý hệ thống siêu thị chi nhánh và ma trận tồn kho sản phẩm (4 APIs)",
+			"description": "Phân hệ 2A: Quản lý hệ thống siêu thị chi nhánh và ma trận tồn kho sản phẩm (5 APIs)",
 			"item": [
 				{
 					"name": "8. GET /api/v1/inventory/branches - Toàn bộ chi nhánh siêu thị ĐMX",
@@ -349,6 +349,20 @@
 							]
 						},
 						"description": "Lấy toàn bộ danh sách mặt hàng và số lượng tồn kho thực tế tại một siêu thị chi nhánh cụ thể."
+					},
+					"response": []
+				},
+				{
+					"name": "10b. GET /api/v1/inventory/stock-matrix - Ma trận tồn kho toàn hệ thống",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/inventory/stock-matrix",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "inventory", "stock-matrix"]
+						},
+						"description": "Danh sách phẳng gồm productId, sku, branchId và quantity cho mọi chi nhánh."
 					},
 					"response": []
 				},
@@ -484,7 +498,7 @@
 		},
 		{
 			"name": "04 - Orders & Checkout (Đơn đặt hàng & Trừ tồn kho)",
-			"description": "Phân hệ 3A: Tiếp nhận đơn hàng, áp dụng voucher và tự động khấu trừ tồn kho giao dịch (@Transactional) (4 APIs)",
+			"description": "Phân hệ 3A: Báo giá và tiếp nhận đơn hàng, áp dụng voucher và khấu trừ tồn kho (@Transactional) (5 APIs)",
 			"item": [
 				{
 					"name": "16. GET /api/v1/orders - Toàn bộ danh sách đơn đặt hàng",
@@ -524,6 +538,24 @@
 							]
 						},
 						"description": "Xem chi tiết một đơn đặt hàng bao gồm thông tin giao hàng, voucher áp dụng và danh sách chi tiết các món orderItems."
+					},
+					"response": []
+				},
+				{
+					"name": "17b. POST /api/v1/orders/quote - Báo giá đơn hàng",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"promoCode\": \"TET2027\",\n  \"branchId\": 2,\n  \"items\": [{\"productId\": 8, \"quantity\": 1}]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/orders/quote",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "orders", "quote"]
+						},
+						"description": "Tính báo giá, khuyến mãi và kiểm tra tồn kho mà không tạo đơn hàng."
 					},
 					"response": []
 				},
@@ -589,7 +621,7 @@
 		},
 		{
 			"name": "05 - Customers (Khách hàng thành viên)",
-			"description": "Phân hệ 3B: Hồ sơ khách hàng thành viên Điện Máy Xanh (5 APIs)",
+			"description": "Phân hệ 3B: Hồ sơ khách hàng thành viên Điện Máy Xanh (7 APIs)",
 			"item": [
 				{
 					"name": "20. GET /api/v1/customers - Toàn bộ danh sách khách hàng",
@@ -608,6 +640,35 @@
 							]
 						},
 						"description": "Lấy danh sách toàn bộ khách hàng thành viên đã đăng ký hoặc từng mua hàng trong hệ thống."
+					},
+					"response": []
+				},
+				{
+					"name": "20a. GET /api/v1/customers/lookup - Tra cứu theo điện thoại hoặc email",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/customers/lookup?identifier=an.nguyen%40gmail.com",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "customers", "lookup"],
+							"query": [{"key": "identifier", "value": "an.nguyen@gmail.com"}]
+						},
+						"description": "Trả về một khách hàng theo số điện thoại hoặc email, không phân biệt hoa thường."
+					},
+					"response": []
+				},
+				{
+					"name": "20b. GET /api/v1/customers/phone/{phone} - Tra cứu theo điện thoại",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/customers/phone/0901234567",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "customers", "phone", "0901234567"]
+						},
+						"description": "Tra cứu khách hàng theo số điện thoại."
 					},
 					"response": []
 				},

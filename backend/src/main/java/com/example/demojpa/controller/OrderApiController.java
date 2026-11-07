@@ -1,14 +1,15 @@
 package com.example.demojpa.controller;
 
 import com.example.demojpa.dto.CreateOrderRequest;
+import com.example.demojpa.dto.OrderQuote;
 import com.example.demojpa.entity.CustomerOrder;
+import com.example.demojpa.service.OrderPricingService;
 import com.example.demojpa.service.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * REST Controller: OrderApiController
@@ -21,9 +22,11 @@ import java.util.Map;
 public class OrderApiController {
 
     private final OrderService orderService;
+    private final OrderPricingService pricingService;
 
-    public OrderApiController(OrderService orderService) {
+    public OrderApiController(OrderService orderService, OrderPricingService pricingService) {
         this.orderService = orderService;
+        this.pricingService = pricingService;
     }
 
     /**
@@ -47,17 +50,24 @@ public class OrderApiController {
     }
 
     /**
+     * POST /api/v1/orders/quote
+     * Tính toán báo giá đơn hàng (không ghi CSDL).
+     * customerName/phone/address có thể để trống khi chỉ báo giá.
+     */
+    @PostMapping("/quote")
+    public ResponseEntity<OrderQuote> quoteOrder(@RequestBody CreateOrderRequest req) {
+        OrderQuote quote = pricingService.quote(req);
+        return ResponseEntity.ok(quote);
+    }
+
+    /**
      * POST /api/v1/orders
      * Tạo đơn đặt hàng mới và tự động trừ số lượng tồn kho (HTTP POST)
      */
     @PostMapping
-    public ResponseEntity<?> createOrder(@RequestBody CreateOrderRequest req) {
-        try {
-            CustomerOrder order = orderService.createOrder(req);
-            return ResponseEntity.status(HttpStatus.CREATED).body(order);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+    public ResponseEntity<CustomerOrder> createOrder(@RequestBody CreateOrderRequest req) {
+        CustomerOrder order = orderService.createOrder(req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(order);
     }
 
     /**

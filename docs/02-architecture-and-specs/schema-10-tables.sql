@@ -61,6 +61,7 @@ CREATE TABLE promotions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     promo_code VARCHAR(50) NOT NULL UNIQUE,
     discount_percent DOUBLE NOT NULL,
+    max_discount_amount DOUBLE NULL,
     description VARCHAR(255),
     is_active BOOLEAN NOT NULL
 );

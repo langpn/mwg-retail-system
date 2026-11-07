@@ -2,10 +2,15 @@ package com.example.demojpa;
 
 import com.example.demojpa.entity.Inventory;
 import com.example.demojpa.entity.Product;
+import com.example.demojpa.entity.Promotion;
+import com.example.demojpa.seeder.DataSeeder;
 import com.example.demojpa.entity.StoreBranch;
 import com.example.demojpa.repository.*;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.metamodel.EntityType;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,8 +39,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *  4. REST API Phân hệ 3: Tạo đơn hàng áp dụng mã giảm giá MWG5, tự động trừ tồn kho, từ chối hàng hết (400 Bad Request).
  *  5. Tuần tự hóa JSON sạch sẽ (Jackson Clean Serialization) không dính đệ quy vòng lặp cho Khách hàng, Khuyến mãi, Đánh giá, Đơn hàng.
  *  6. Định tuyến tĩnh React SPA (/dashboard -> /dashboard.html) & Giao diện phụ Spring MVC Thymeleaf SSR (/mvc/catalog).
+ *  7. Server-Side Pagination (Pageable + LIMIT/OFFSET).
+ *  8. OrderPricingService: báo giá, giới hạn giảm giá, mã không hợp lệ, kiểm tra số lượng.
+ *  9. N+1 Query Elimination: kiểm đếm PrepareStatement cho các endpoint chính.
+ * 10. Stock Matrix, Customer Lookup.
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        "spring.jpa.properties.hibernate.generate_statistics=true"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("dev")
 class DemojpaApplicationTests {
@@ -75,6 +86,17 @@ class DemojpaApplicationTests {
 
     @Autowired
     private OrderItemRepository orderItemRepo;
+
+    @Autowired
+    private DataSeeder dataSeeder;
+
+    private Statistics hibernateStats;
+
+    @BeforeEach
+    void setUpStats() {
+        hibernateStats = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        hibernateStats.setStatisticsEnabled(true);
+    }
 
     /**
      * Test 1: Kiểm chứng CSDL đã chuẩn hóa chính xác 10 Thực thể Bán lẻ MWG và 10/10 Repositories có dữ liệu.
@@ -201,6 +223,7 @@ class DemojpaApplicationTests {
         assertTrue(stockBefore > 0, "Cần có tồn kho khả dụng ban đầu để thực hiện đặt hàng");
 
         // 2. Gửi POST /api/v1/orders mua 1 sản phẩm kèm mã giảm giá MWG5 (giảm 5%)
+        // expectedTotal = round(7490000 * 5 / 100) = 374500; total = 7490000 - 374500 = 7115500
         double expectedTotal = p1.getPrice() * 0.95;
         String createOrderPayload = String.format("""
                 {
@@ -415,5 +438,519 @@ class DemojpaApplicationTests {
                 .andExpect(content().string(containsString("Máy giặt")))
                 .andExpect(content().string(containsString("Tủ lạnh")))
                 .andExpect(content().string(containsString("Smart Tivi")));
+    }
+
+    // ========================================================================
+    // TEST 8: OrderPricingService — báo giá, giới hạn giảm giá, mã không hợp lệ
+    // ========================================================================
+
+    /**
+     * Test 8a: Quote TET2027 trên 1×DMX-TL-004 tại chi nhánh Thủ Đức.
+     * subtotal=32490000, discount bị cap ở 1500000, total=30990000.
+     */
+    @Test
+    @DisplayName("8a. Quote TET2027 trên DMX-TL-004 (chi nhánh Thủ Đức): discount bị cap 1,500,000đ")
+    void quoteTet2027WithCapOnTl004() throws Exception {
+        Product tl004 = productRepo.findBySku("DMX-TL-004").orElseThrow();
+        StoreBranch thuDuc = branchRepo.findAll().stream()
+                .filter(b -> b.getDistrict().contains("Thủ Đức"))
+                .findFirst()
+                .orElseThrow();
+
+        String payload = String.format("""
+                {
+                    "promoCode": "  tEt2027  ",
+                    "branchId": %d,
+                    "items": [{"productId": %d, "quantity": 1}]
+                }
+                """, thuDuc.getId(), tl004.getId());
+
+        mockMvc.perform(post("/api/v1/orders/quote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subtotal", is(closeTo(32490000.0, 0.01))))
+                .andExpect(jsonPath("$.promoApplied", is(true)))
+                .andExpect(jsonPath("$.promoCode", is("TET2027")))
+                .andExpect(jsonPath("$.promoLabel", containsString("Tết 2027")))
+                .andExpect(jsonPath("$.promoMessage").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].productId", is(tl004.getId().intValue())))
+                .andExpect(jsonPath("$.items[0].sku", is("DMX-TL-004")))
+                .andExpect(jsonPath("$.items[0].name").isNotEmpty())
+                .andExpect(jsonPath("$.items[0].unitPrice", is(closeTo(32490000.0, 0.01))))
+                .andExpect(jsonPath("$.items[0].quantity", is(1)))
+                .andExpect(jsonPath("$.items[0].lineTotal", is(closeTo(32490000.0, 0.01))))
+                .andExpect(jsonPath("$.discount", is(closeTo(1500000.0, 0.01))))
+                .andExpect(jsonPath("$.total", is(closeTo(30990000.0, 0.01))));
+    }
+
+    /**
+     * Test 8b: Quote MWG5 trên 2×DMX-MG-001.
+     * subtotal=14980000, discount=round(14980000*0.05)=749000, total=14231000.
+     */
+    @Test
+    @DisplayName("8b. Quote MWG5 trên 2×DMX-MG-001: discount=749000 (không giới hạn)")
+    void quoteMwg5OnTwoDmxMg001() throws Exception {
+        Product mg001 = productRepo.findBySku("DMX-MG-001").orElseThrow();
+
+        String payload = String.format("""
+                {
+                    "promoCode": "MWG5",
+                    "items": [{"productId": %d, "quantity": 2}]
+                }
+                """, mg001.getId());
+
+        mockMvc.perform(post("/api/v1/orders/quote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subtotal", is(closeTo(14980000.0, 0.01))))
+                .andExpect(jsonPath("$.promoApplied", is(true)))
+                .andExpect(jsonPath("$.discount", is(closeTo(749000.0, 0.01))))
+                .andExpect(jsonPath("$.total", is(closeTo(14231000.0, 0.01))));
+    }
+
+    /**
+     * Test 8c: Quote với mã không tồn tại → discount=0, promoApplied=false, promoMessage non-null.
+     */
+    @Test
+    @DisplayName("8c. Quote với mã không tồn tại: promoApplied=false, promoMessage không null")
+    void quoteWithUnknownPromoCode() throws Exception {
+        Product gd001 = productRepo.findBySku("DMX-GD-001").orElseThrow();
+
+        String payload = String.format("""
+                {
+                    "promoCode": "INVALID_CODE_XYZ",
+                    "items": [{"productId": %d, "quantity": 1}]
+                }
+                """, gd001.getId());
+
+        mockMvc.perform(post("/api/v1/orders/quote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.promoApplied", is(false)))
+                .andExpect(jsonPath("$.discount", is(closeTo(0.0, 0.01))))
+                .andExpect(jsonPath("$.promoMessage").isNotEmpty());
+    }
+
+    /**
+     * Test 8d: Quote với quantity=0 → 400 với "error".
+     */
+    @Test
+    @DisplayName("8d. Quote quantity=0 → 400 Bad Request với field 'error'")
+    void quoteWithZeroQuantityReturns400() throws Exception {
+        Product mg001 = productRepo.findBySku("DMX-MG-001").orElseThrow();
+
+        String payload = String.format("""
+                {
+                    "items": [{"productId": %d, "quantity": 0}]
+                }
+                """, mg001.getId());
+
+        mockMvc.perform(post("/api/v1/orders/quote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
+    }
+
+    /**
+     * Test 8e: Quote với items rỗng → 400 với "error".
+     */
+    @Test
+    @DisplayName("8e. Quote items rỗng → 400 Bad Request với field 'error'")
+    void quoteWithEmptyItemsReturns400() throws Exception {
+        mockMvc.perform(post("/api/v1/orders/quote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\": []}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
+    }
+
+    /**
+     * Test 8f: createOrder đa mặt hàng (2 sản phẩm khác nhau):
+     * - orderItems có 2 phần tử
+     * - totalAmount bằng đúng quote.total cho cùng request
+     * - tồn kho bị trừ cho cả 2 sản phẩm
+     */
+    @Test
+    @DisplayName("8f. createOrder đa mặt hàng: 2 orderItems, totalAmount = quote.total, stock giảm cho cả 2 sản phẩm")
+    void createOrderMultiItemMatchesQuoteAndDecrementsStock() throws Exception {
+        Product mg001 = productRepo.findBySku("DMX-MG-001").orElseThrow();
+        Product gd001 = productRepo.findBySku("DMX-GD-001").orElseThrow();
+        StoreBranch branchQ9 = branchRepo.findAll().stream()
+                .filter(b -> b.getDistrict().contains("9"))
+                .findFirst()
+                .orElseThrow();
+
+        // Đọc tồn kho ban đầu
+        Inventory invMg = inventoryRepo.findByProduct_IdAndStoreBranch_Id(mg001.getId(), branchQ9.getId()).orElseThrow();
+        Inventory invGd = inventoryRepo.findByProduct_IdAndStoreBranch_Id(gd001.getId(), branchQ9.getId()).orElseThrow();
+        int stockMgBefore = invMg.getQuantity();
+        int stockGdBefore = invGd.getQuantity();
+        assertTrue(stockMgBefore > 0, "DMX-MG-001 tại Q9 cần có tồn kho");
+        assertTrue(stockGdBefore > 0, "DMX-GD-001 tại Q9 cần có tồn kho");
+
+        // Lấy quote trước để kiểm tra totalAmount
+        String quotePayload = String.format("""
+                {
+                    "promoCode": "MWG5",
+                    "branchId": %d,
+                    "items": [
+                        {"productId": %d, "quantity": 1},
+                        {"productId": %d, "quantity": 2}
+                    ]
+                }
+                """, branchQ9.getId(), mg001.getId(), gd001.getId());
+
+        var quoteResult = mockMvc.perform(post("/api/v1/orders/quote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(quotePayload))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        // Trích total từ response JSON
+        String quoteBody = quoteResult.getResponse().getContentAsString();
+        double expectedTotal = ((Number) com.jayway.jsonpath.JsonPath.read(quoteBody, "$.total")).doubleValue();
+
+        // Tạo đơn hàng với cùng payload
+        String orderPayload = String.format("""
+                {
+                    "customerName": "Khách Đa Món",
+                    "phone": "0911222333",
+                    "shippingAddress": "10 Lê Văn Việt, Q9",
+                    "promoCode": "MWG5",
+                    "branchId": %d,
+                    "items": [
+                        {"productId": %d, "quantity": 1},
+                        {"productId": %d, "quantity": 2}
+                    ]
+                }
+                """, branchQ9.getId(), mg001.getId(), gd001.getId());
+
+        mockMvc.perform(post("/api/v1/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(orderPayload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.orderItems", hasSize(2)))
+                .andExpect(jsonPath("$.totalAmount", is(closeTo(expectedTotal, 0.01))));
+
+        // Kiểm tra tồn kho đã bị trừ
+        Inventory invMgAfter = inventoryRepo.findByProduct_IdAndStoreBranch_Id(mg001.getId(), branchQ9.getId()).orElseThrow();
+        Inventory invGdAfter = inventoryRepo.findByProduct_IdAndStoreBranch_Id(gd001.getId(), branchQ9.getId()).orElseThrow();
+        assertEquals(stockMgBefore - 1, invMgAfter.getQuantity(), "Tồn kho MG-001 phải giảm 1");
+        assertEquals(stockGdBefore - 2, invGdAfter.getQuantity(), "Tồn kho GD-001 phải giảm 2");
+    }
+
+    /**
+     * Test 8g: createOrder thất bại khi hết hàng → tồn kho không bị thay đổi (rollback).
+     * Dùng DMX-TL-004 tại chi nhánh Quận 9 (seed = 0).
+     */
+    @Test
+    @DisplayName("8g. createOrder thất bại khi hết hàng (stock=0) → rollback, tồn kho không đổi")
+    void createOrderFailsOnOutOfStockAndRollsBack() throws Exception {
+        Product tl004 = productRepo.findBySku("DMX-TL-004").orElseThrow();
+        Product inStockProduct = productRepo.findBySku("DMX-GD-001").orElseThrow();
+        StoreBranch branchQ9 = branchRepo.findAll().stream()
+                .filter(b -> b.getDistrict().contains("9"))
+                .findFirst()
+                .orElseThrow();
+
+        Inventory inv = inventoryRepo.findByProduct_IdAndStoreBranch_Id(tl004.getId(), branchQ9.getId()).orElseThrow();
+        int stockBefore = inv.getQuantity();
+        // DMX-TL-004 tại Q9 được seed = 0
+        assertEquals(0, stockBefore, "DMX-TL-004 tại Q9 phải có tồn kho = 0 (theo DataSeeder)");
+        int availableBefore = inventoryRepo.findByProduct_IdAndStoreBranch_Id(inStockProduct.getId(), branchQ9.getId())
+                .orElseThrow().getQuantity();
+        assertTrue(availableBefore > 0);
+        long ordersBefore = orderRepo.count();
+
+        String payload = String.format("""
+                {
+                    "customerName": "Khách Hết Hàng",
+                    "phone": "0922333444",
+                    "shippingAddress": "999 Q9",
+                    "branchId": %d,
+                    "items": [{"productId": %d, "quantity": 1}, {"productId": %d, "quantity": 1}]
+                }
+                """, branchQ9.getId(), inStockProduct.getId(), tl004.getId());
+
+        mockMvc.perform(post("/api/v1/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
+
+        // Tồn kho vẫn phải là 0 (không thay đổi)
+        Inventory invAfter = inventoryRepo.findByProduct_IdAndStoreBranch_Id(tl004.getId(), branchQ9.getId()).orElseThrow();
+        assertEquals(0, invAfter.getQuantity(), "Tồn kho vẫn phải là 0 sau khi rollback");
+        assertEquals(availableBefore, inventoryRepo.findByProduct_IdAndStoreBranch_Id(inStockProduct.getId(), branchQ9.getId())
+                .orElseThrow().getQuantity());
+        assertEquals(ordersBefore, orderRepo.count());
+        assertTrue(customerRepo.findByPhone("0922333444").isEmpty());
+    }
+
+    // ========================================================================
+    // TEST 9: Stock Matrix và Customer Lookup
+    // ========================================================================
+
+    /**
+     * Test 9a: GET /api/v1/inventory/stock-matrix trả về đúng 32 dòng (16 sản phẩm × 2 chi nhánh).
+     */
+    @Test
+    @DisplayName("9a. GET /api/v1/inventory/stock-matrix trả về 32 dòng (16 SP × 2 chi nhánh)")
+    void stockMatrixReturns32Entries() throws Exception {
+        mockMvc.perform(get("/api/v1/inventory/stock-matrix"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$", hasSize(32)))
+                .andExpect(jsonPath("$[0].productId").exists())
+                .andExpect(jsonPath("$[0].sku").exists())
+                .andExpect(jsonPath("$[0].branchId").exists())
+                .andExpect(jsonPath("$[0].quantity").exists());
+    }
+
+    /**
+     * Test 9b: Customer Lookup theo số điện thoại → 200.
+     */
+    @Test
+    @DisplayName("9b. GET /api/v1/customers/lookup?identifier=<phone> → 200 trả đúng khách hàng")
+    void customerLookupByPhone() throws Exception {
+        mockMvc.perform(get("/api/v1/customers/lookup")
+                        .param("identifier", "0901234567"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.phone", is("0901234567")))
+                .andExpect(jsonPath("$.fullName").exists());
+    }
+
+    /**
+     * Test 9c: Customer Lookup theo email (không phân biệt hoa/thường) → 200.
+     */
+    @Test
+    @DisplayName("9c. GET /api/v1/customers/lookup?identifier=<EMAIL_UPPERCASE> → 200 (case-insensitive)")
+    void customerLookupByEmailCaseInsensitive() throws Exception {
+        mockMvc.perform(get("/api/v1/customers/lookup")
+                        .param("identifier", "AN.NGUYEN@GMAIL.COM"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").exists())
+                .andExpect(jsonPath("$.fullName").exists());
+    }
+
+    /**
+     * Test 9d: Customer Lookup với identifier không tồn tại → 404.
+     */
+    @Test
+    @DisplayName("9d. GET /api/v1/customers/lookup?identifier=<không tồn tại> → 404")
+    void customerLookupUnknownReturns404() throws Exception {
+        mockMvc.perform(get("/api/v1/customers/lookup")
+                        .param("identifier", "0000000000"))
+                .andExpect(status().isNotFound());
+    }
+
+    // ========================================================================
+    // TEST 10: N+1 Query Elimination — kiểm đếm PrepareStatement
+    // ========================================================================
+
+    @Test
+    void repeatedProductLinesMustNotExceedAvailableStock() throws Exception {
+        Product product = productRepo.findBySku("DMX-GD-001").orElseThrow();
+        StoreBranch branch = branchRepo.findAll().stream()
+                .filter(b -> b.getDistrict().equals("Quận 9")).findFirst().orElseThrow();
+        int before = inventoryRepo.findByProduct_IdAndStoreBranch_Id(product.getId(), branch.getId())
+                .orElseThrow().getQuantity();
+        assertTrue(before > 0);
+        String request = String.format("""
+                {"customerName":"Khách thử", "phone":"0944000001", "shippingAddress":"Q9",
+                 "branchId":%d, "items":[{"productId":%d,"quantity":%d},{"productId":%d,"quantity":1}]}
+                """, branch.getId(), product.getId(), before, product.getId());
+
+        mockMvc.perform(post("/api/v1/orders/quote").contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+        assertEquals(before, inventoryRepo.findByProduct_IdAndStoreBranch_Id(product.getId(), branch.getId())
+                .orElseThrow().getQuantity());
+        assertTrue(customerRepo.findByPhone("0944000001").isEmpty());
+    }
+
+    @Test
+    void quoteRejectsNullItemAndMalformedJson() throws Exception {
+        mockMvc.perform(post("/api/v1/orders/quote").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[null]}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+        mockMvc.perform(post("/api/v1/orders/quote").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":["))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", is("Dữ liệu gửi lên không hợp lệ")));
+    }
+
+    @Test
+    void existingTetPromotionReceivesCapOnSeed() throws Exception {
+        Promotion promotion = promoRepo.findByPromoCode("TET2027").orElseThrow();
+        Double originalCap = promotion.getMaxDiscountAmount();
+        try {
+            promotion.setMaxDiscountAmount(null);
+            promoRepo.saveAndFlush(promotion);
+            dataSeeder.run();
+            assertEquals(1500000.0, promoRepo.findByPromoCode("TET2027").orElseThrow().getMaxDiscountAmount());
+        } finally {
+            promotion = promoRepo.findByPromoCode("TET2027").orElseThrow();
+            promotion.setMaxDiscountAmount(originalCap);
+            promoRepo.saveAndFlush(promotion);
+        }
+    }
+
+    @Test
+    void quoteRoundsWholeDongAndIgnoresInactivePromotion() throws Exception {
+        Product product = productRepo.findBySku("DMX-GD-001").orElseThrow();
+        promoRepo.save(new Promotion("ROUNDTEST", 1.234, "Làm tròn", true));
+        promoRepo.save(new Promotion("INACTIVE_TEST", 10.0, "Không áp dụng", false));
+        String request = "{\"promoCode\":\"%s\",\"items\":[{\"productId\":%d,\"quantity\":1}]}";
+        mockMvc.perform(post("/api/v1/orders/quote").contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(request, "ROUNDTEST", product.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.discount", is(closeTo(24557.0, 0.01))))
+                .andExpect(jsonPath("$.total", is(closeTo(1965443.0, 0.01))));
+        mockMvc.perform(post("/api/v1/orders/quote").contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(request, "INACTIVE_TEST", product.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.promoApplied", is(false)))
+                .andExpect(jsonPath("$.promoCode").value(nullValue()))
+                .andExpect(jsonPath("$.promoLabel").value(nullValue()))
+                .andExpect(jsonPath("$.promoMessage", is("Mã khuyến mãi không hợp lệ hoặc đã hết hạn")))
+                .andExpect(jsonPath("$.discount", is(closeTo(0.0, 0.01))));
+    }
+
+    @Test
+    void quoteRejectsInvalidProductAndQuantity() throws Exception {
+        Product product = productRepo.findBySku("DMX-GD-001").orElseThrow();
+        String[] invalidRequests = {
+                "{\"items\":[{\"quantity\":1}]}",
+                "{\"items\":[{\"productId\":999999,\"quantity\":1}]}",
+                String.format("{\"items\":[{\"productId\":%d,\"quantity\":-1}]}", product.getId()),
+                String.format("{\"items\":[{\"productId\":%d}]}", product.getId())
+        };
+        for (String request : invalidRequests) {
+            mockMvc.perform(post("/api/v1/orders/quote").contentType(MediaType.APPLICATION_JSON).content(request))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+        }
+    }
+
+    @Test
+    void createOrderRequiresCustomerNameAndPhone() throws Exception {
+        Long productId = productRepo.findBySku("DMX-GD-001").orElseThrow().getId();
+        String item = "\"items\":[{\"productId\":" + productId + ",\"quantity\":1}]";
+        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"0901234567\"," + item + "}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"customerName\":\"Khách\",\"phone\":\" \"," + item + "}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+    }
+
+    @Test
+    void existingOrderDetailAndStatusSerializeWithOpenInViewDisabled() throws Exception {
+        mockMvc.perform(get("/api/v1/orders/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderItems[0].product.category.name").exists());
+        mockMvc.perform(put("/api/v1/orders/1/status").param("status", "COMPLETED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("COMPLETED")))
+                .andExpect(jsonPath("$.orderItems[0].product.sku").exists());
+    }
+
+    @Test
+    void lookupRejectsBlankAndTrimsPhone() throws Exception {
+        mockMvc.perform(get("/api/v1/customers/lookup").param("identifier", "   "))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+        mockMvc.perform(get("/api/v1/customers/lookup").param("identifier", "  0901234567  "))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.phone", is("0901234567")));
+    }
+
+    @Test
+    void duplicateCustomerPhoneReturnsExistingMessageShape() throws Exception {
+        mockMvc.perform(post("/api/v1/customers").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"Thử\",\"phone\":\" 0901234567 \"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", is("Số điện thoại này đã được đăng ký thành viên")));
+    }
+
+    /**
+     * Test 10a: GET /api/v1/orders không phát sinh N+1 (prepareStatementCount <= 2).
+     */
+    @Test
+    @DisplayName("10a. GET /api/v1/orders không N+1: prepareStatementCount <= 2")
+    void ordersEndpointNoNPlusOne() throws Exception {
+        for (String sku : new String[]{"DMX-TL-004", "DMX-GD-001", "DMX-TV-001"}) {
+            Long productId = productRepo.findBySku(sku).orElseThrow().getId();
+            String request = String.format("""
+                    {"customerName":"Nguyễn Văn An","phone":"0901234567","shippingAddress":"Q9",
+                     "items":[{"productId":%d,"quantity":1}]}
+                    """, productId);
+            mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content(request))
+                    .andExpect(status().isCreated());
+        }
+        hibernateStats.clear();
+        mockMvc.perform(get("/api/v1/orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(4))))
+                .andExpect(jsonPath("$[0].orderItems[0].product.category.name").exists());
+        long stmtCount = hibernateStats.getPrepareStatementCount();
+        System.out.println("STATEMENTS /api/v1/orders: " + stmtCount);
+        assertTrue(stmtCount <= 2,
+                "GET /api/v1/orders phải dùng <= 2 PrepareStatement (thực tế: " + stmtCount + ")");
+    }
+
+    /**
+     * Test 10b: GET /api/v1/inventory/branch/1 không phát sinh N+1 (prepareStatementCount <= 2).
+     */
+    @Test
+    @DisplayName("10b. GET /api/v1/inventory/branch/1 không N+1: prepareStatementCount <= 2")
+    void inventoryBranchEndpointNoNPlusOne() throws Exception {
+        StoreBranch branchQ9 = branchRepo.findAll().stream()
+                .filter(b -> b.getDistrict().contains("9"))
+                .findFirst()
+                .orElseThrow();
+
+        hibernateStats.clear();
+        mockMvc.perform(get("/api/v1/inventory/branch/" + branchQ9.getId()))
+                .andExpect(status().isOk());
+        long stmtCount = hibernateStats.getPrepareStatementCount();
+        System.out.println("STATEMENTS /api/v1/inventory/branch/1: " + stmtCount);
+        assertTrue(stmtCount <= 2,
+                "GET /api/v1/inventory/branch/{id} phải dùng <= 2 PrepareStatement (thực tế: " + stmtCount + ")");
+    }
+
+    /**
+     * Test 10c: GET /api/v1/inventory/stock-matrix không phát sinh N+1 (prepareStatementCount <= 2).
+     */
+    @Test
+    @DisplayName("10c. GET /api/v1/inventory/stock-matrix không N+1: prepareStatementCount <= 2")
+    void stockMatrixEndpointNoNPlusOne() throws Exception {
+        hibernateStats.clear();
+        mockMvc.perform(get("/api/v1/inventory/stock-matrix"))
+                .andExpect(status().isOk());
+        long stmtCount = hibernateStats.getPrepareStatementCount();
+        System.out.println("STATEMENTS /api/v1/inventory/stock-matrix: " + stmtCount);
+        assertTrue(stmtCount <= 2,
+                "GET /api/v1/inventory/stock-matrix phải dùng <= 2 PrepareStatement (thực tế: " + stmtCount + ")");
+    }
+
+    /**
+     * Test 10d: GET /api/v1/products/page không phát sinh N+1 (prepareStatementCount <= 2).
+     */
+    @Test
+    @DisplayName("10d. GET /api/v1/products/page không N+1: prepareStatementCount <= 2")
+    void productPageEndpointNoNPlusOne() throws Exception {
+        hibernateStats.clear();
+        mockMvc.perform(get("/api/v1/products/page")
+                        .param("page", "0")
+                        .param("size", "6"))
+                .andExpect(status().isOk());
+        long stmtCount = hibernateStats.getPrepareStatementCount();
+        System.out.println("STATEMENTS /api/v1/products/page: " + stmtCount);
+        assertTrue(stmtCount <= 2,
+                "GET /api/v1/products/page phải dùng <= 2 PrepareStatement (thực tế: " + stmtCount + ")");
     }
 }

@@ -58,6 +58,13 @@ public class DataSeeder implements CommandLineRunner {
     public void run(String... args) throws Exception {
         // Chỉ nạp dữ liệu nếu bảng categories chưa có dữ liệu (Idempotent)
         if (categoryRepo.count() > 0) {
+            // Bổ sung giới hạn cho dữ liệu mẫu cũ sau khi cột mới được tạo.
+            promoRepo.findByPromoCode("TET2027").ifPresent(promotion -> {
+                if (promotion.getMaxDiscountAmount() == null) {
+                    promotion.setMaxDiscountAmount(1500000.0);
+                    promoRepo.save(promotion);
+                }
+            });
             return;
         }
 
@@ -95,7 +102,7 @@ public class DataSeeder implements CommandLineRunner {
         // 5. Nạp 2 Chương trình Khuyến mãi
         // ============================================================
         Promotion promo5 = promoRepo.save(new Promotion("MWG5", 5.0, "Giảm ngay 5% cho khách hàng mua online hoặc trả góp 0%", true));
-        Promotion promo10 = promoRepo.save(new Promotion("TET2027", 10.0, "Ưu đãi Tết 2027 tri ân khách hàng thân thiết", true));
+        Promotion promo10 = promoRepo.save(new Promotion("TET2027", 10.0, "Ưu đãi Tết 2027 tri ân khách hàng thân thiết", true, 1500000.0));
 
         // ============================================================
         // 6. Nạp 16 Sản phẩm điện máy thực tế (4 SKU / danh mục)

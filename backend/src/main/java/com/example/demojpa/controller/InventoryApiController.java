@@ -1,5 +1,6 @@
 package com.example.demojpa.controller;
 
+import com.example.demojpa.dto.StockEntry;
 import com.example.demojpa.dto.StockUpdateRequest;
 import com.example.demojpa.entity.Inventory;
 import com.example.demojpa.entity.StoreBranch;
@@ -50,11 +51,20 @@ public class InventoryApiController {
 
     /**
      * GET /api/v1/inventory/branch/{branchId}
-     * Lấy toàn bộ danh sách tồn kho của một siêu thị
+     * Lấy toàn bộ danh sách tồn kho của một siêu thị (JOIN FETCH, không N+1)
      */
     @GetMapping("/branch/{branchId}")
     public ResponseEntity<List<Inventory>> getBranchInventory(@PathVariable Long branchId) {
         return ResponseEntity.ok(inventoryService.getInventoryByBranch(branchId));
+    }
+
+    /**
+     * GET /api/v1/inventory/stock-matrix
+     * Trả về ma trận tồn kho phẳng (tất cả sản phẩm × tất cả chi nhánh) bằng 1 câu JPQL.
+     */
+    @GetMapping("/stock-matrix")
+    public ResponseEntity<List<StockEntry>> getStockMatrix() {
+        return ResponseEntity.ok(inventoryService.getStockMatrix());
     }
 
     /**
