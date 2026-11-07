@@ -30,7 +30,16 @@ import {
   promotionsApi,
   reviewsApi,
   ping,
-} from '@/lib/dashboard-api'
+  type BackendOrder,
+  type BackendProduct,
+  type BackendCategory,
+  type BackendBrand,
+  type BackendCustomer,
+  type BackendPromotion,
+  type BackendReview,
+  type ProductInput,
+  type ReviewInput,
+} from '@/lib/api'
 
 /* ── Types ── */
 type Section = 'overview' | 'products' | 'orders' | 'customers' | 'promotions' | 'reviews'
@@ -191,23 +200,21 @@ const statusColors: Record<string, string> = {
    ══════════════════════════════════════════ */
 function OverviewSection() {
   const [stats, setStats] = useState({ products: 0, orders: 0, revenue: 0, lowStock: 0, customers: 0, reviews: 0 })
-  const [recentOrders, setRecentOrders] = useState<any[]>([])
+  const [recentOrders, setRecentOrders] = useState<BackendOrder[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [products, orders, inv1, inv2, customers, reviews] = await Promise.all([
+      const [products, orders, inventory, customers, reviews] = await Promise.all([
         productsApi.list(),
         ordersApi.list(),
-        inventoryApi.byBranch(1),
-        inventoryApi.byBranch(2),
+        inventoryApi.stockMatrix(),
         customersApi.list(),
         reviewsApi.list(),
       ])
-      const revenue = orders.reduce((s: number, o: any) => s + (o.totalAmount || 0), 0)
-      const allInv = [...inv1, ...inv2]
-      const lowStock = allInv.filter((i: any) => i.quantity <= 2).length
+      const revenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0)
+      const lowStock = inventory.filter((item) => item.quantity <= 2).length
       setStats({
         products: products.length,
         orders: orders.length,
@@ -271,11 +278,11 @@ function OverviewSection() {
             </tr>
           </thead>
           <tbody>
-            {recentOrders.map((o: any) => (
+            {recentOrders.map((o) => (
               <tr key={o.id} className="border-b last:border-0">
                 <td className="px-4 py-2 font-mono text-xs">#{o.id}</td>
                 <td className="px-4 py-2">{o.customerName}</td>
-                <td className="px-4 py-2 max-w-[200px] truncate">{o.orderItems?.[0]?.product?.name ?? '—'}</td>
+                <td className="px-4 py-2 max-w-[200px] truncate">{o.orderItems?.map((item) => `${item.quantity}× ${item.product.name}`).join(' · ') || '—'}</td>
                 <td className="px-4 py-2 text-right font-medium text-price">{fmtVND(o.totalAmount)}</td>
                 <td className="px-4 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusColors[o.status] ?? ''}`}>
@@ -301,10 +308,10 @@ function OverviewSection() {
 const ADMIN_PAGE_SIZES = [5, 8, 15]
 
 function ProductsSection() {
-  const [items, setItems] = useState<any[]>([])
-  const [categories, setCategories] = useState<any[]>([])
-  const [brands, setBrands] = useState<any[]>([])
-  const [editing, setEditing] = useState<any | null>(null) // null = closed, {} = new, {id} = edit
+  const [items, setItems] = useState<BackendProduct[]>([])
+  const [categories, setCategories] = useState<BackendCategory[]>([])
+  const [brands, setBrands] = useState<BackendBrand[]>([])
+  const [editing, setEditing] = useState<Partial<BackendProduct> | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
 
   // Server-side pagination state
@@ -378,7 +385,7 @@ function ProductsSection() {
     loadOptions()
   }, [loadOptions])
 
-  async function handleSave(data: any) {
+  async function handleSave(data: ProductInput) {
     try {
       if (data.id) {
         await productsApi.update(data.id, data)
@@ -545,7 +552,7 @@ function ProductsSection() {
             </tr>
           </thead>
           <tbody>
-            {items.map((p: any) => (
+            {items.map((p) => (
               <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-3 py-2 text-xs text-muted-foreground">{p.id}</td>
                 <td className="px-3 py-2 font-mono text-xs">{p.sku}</td>
@@ -602,10 +609,10 @@ function ProductForm({
   onSave,
   onCancel,
 }: {
-  initial: any
-  categories: any[]
-  brands: any[]
-  onSave: (d: any) => void
+  initial: Partial<BackendProduct>
+  categories: BackendCategory[]
+  brands: BackendBrand[]
+  onSave: (d: ProductInput) => void
   onCancel: () => void
 }) {
   const [sku, setSku] = useState(initial.sku ?? '')
@@ -637,11 +644,11 @@ function ProductForm({
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tên sản phẩm" required className="w-full rounded-lg border px-3 py-2 text-sm" />
           <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Giá" type="number" required className="w-full rounded-lg border px-3 py-2 text-sm" />
           <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Mô tả" rows={2} className="w-full rounded-lg border px-3 py-2 text-sm" />
-          <select value={catId} onChange={(e) => setCatId(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
-            {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          <select value={catId} onChange={(e) => setCatId(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <select value={brandId} onChange={(e) => setBrandId(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
-            {brands.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          <select value={brandId} onChange={(e) => setBrandId(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
+            {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </div>
         <div className="mt-4 flex justify-end gap-2">
@@ -659,7 +666,7 @@ function ProductForm({
    ORDERS Management
    ══════════════════════════════════════════ */
 function OrdersSection() {
-  const [items, setItems] = useState<any[]>([])
+  const [items, setItems] = useState<BackendOrder[]>([])
   const [filter, setFilter] = useState('ALL')
 
   const load = useCallback(async () => {
@@ -676,7 +683,7 @@ function OrdersSection() {
     } catch { alert('Lỗi cập nhật trạng thái') }
   }
 
-  const filtered = filter === 'ALL' ? items : items.filter((o: any) => o.status === filter)
+  const filtered = filter === 'ALL' ? items : items.filter((o) => o.status === filter)
 
   return (
     <div>
@@ -711,12 +718,12 @@ function OrdersSection() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((o: any) => (
+            {filtered.map((o) => (
               <tr key={o.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-3 py-2 font-mono text-xs">#{o.id}</td>
                 <td className="px-3 py-2">{o.customerName}</td>
                 <td className="px-3 py-2 text-xs">{o.phone}</td>
-                <td className="px-3 py-2 max-w-[200px] truncate text-xs">{o.orderItems?.[0]?.product?.name ?? '—'}</td>
+                <td className="px-3 py-2 max-w-[200px] truncate text-xs">{o.orderItems?.map((item) => `${item.quantity}× ${item.product.name}`).join(' · ') || '—'}</td>
                 <td className="px-3 py-2 text-right font-medium text-price">{fmtVND(o.totalAmount)}</td>
                 <td className="px-3 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusColors[o.status] ?? ''}`}>
@@ -757,9 +764,11 @@ function OrdersSection() {
 /* ══════════════════════════════════════════
    CUSTOMERS CRUD
    ══════════════════════════════════════════ */
+type CustomerInput = Omit<BackendCustomer, 'id'> & { id?: number }
+
 function CustomersSection() {
-  const [items, setItems] = useState<any[]>([])
-  const [editing, setEditing] = useState<any | null>(null)
+  const [items, setItems] = useState<BackendCustomer[]>([])
+  const [editing, setEditing] = useState<Partial<BackendCustomer> | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
 
   const load = useCallback(async () => {
@@ -769,7 +778,7 @@ function CustomersSection() {
   const didLoad = useRef(false)
   useEffect(() => { if (!didLoad.current) { didLoad.current = true; load() } }, [load])
 
-  async function handleSave(data: any) {
+  async function handleSave(data: CustomerInput) {
     try {
       if (data.id) await customersApi.update(data.id, data)
       else await customersApi.create(data)
@@ -806,7 +815,7 @@ function CustomersSection() {
             </tr>
           </thead>
           <tbody>
-            {items.map((c: any) => (
+            {items.map((c) => (
               <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-3 py-2 text-xs text-muted-foreground">{c.id}</td>
                 <td className="px-3 py-2 font-medium">{c.fullName}</td>
@@ -831,7 +840,7 @@ function CustomersSection() {
   )
 }
 
-function CustomerForm({ initial, onSave, onCancel }: { initial: any; onSave: (d: any) => void; onCancel: () => void }) {
+function CustomerForm({ initial, onSave, onCancel }: { initial: Partial<BackendCustomer>; onSave: (d: CustomerInput) => void; onCancel: () => void }) {
   const [fullName, setFullName] = useState(initial.fullName ?? '')
   const [phone, setPhone] = useState(initial.phone ?? '')
   const [email, setEmail] = useState(initial.email ?? '')
@@ -867,8 +876,8 @@ function CustomerForm({ initial, onSave, onCancel }: { initial: any; onSave: (d:
    PROMOTIONS CRUD
    ══════════════════════════════════════════ */
 function PromotionsSection() {
-  const [items, setItems] = useState<any[]>([])
-  const [editing, setEditing] = useState<any | null>(null)
+  const [items, setItems] = useState<BackendPromotion[]>([])
+  const [editing, setEditing] = useState<Partial<BackendPromotion> | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
 
   const load = useCallback(async () => {
@@ -878,7 +887,7 @@ function PromotionsSection() {
   const didLoad = useRef(false)
   useEffect(() => { if (!didLoad.current) { didLoad.current = true; load() } }, [load])
 
-  async function handleSave(data: any) {
+  async function handleSave(data: Partial<BackendPromotion>) {
     try {
       if (data.id) await promotionsApi.update(data.id, data)
       else await promotionsApi.create(data)
@@ -915,7 +924,7 @@ function PromotionsSection() {
             </tr>
           </thead>
           <tbody>
-            {items.map((p: any) => (
+            {items.map((p) => (
               <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-3 py-2 text-xs text-muted-foreground">{p.id}</td>
                 <td className="px-3 py-2 font-mono font-bold text-primary">{p.promoCode}</td>
@@ -946,7 +955,7 @@ function PromotionsSection() {
   )
 }
 
-function PromotionForm({ initial, onSave, onCancel }: { initial: any; onSave: (d: any) => void; onCancel: () => void }) {
+function PromotionForm({ initial, onSave, onCancel }: { initial: Partial<BackendPromotion>; onSave: (d: Partial<BackendPromotion>) => void; onCancel: () => void }) {
   const [promoCode, setPromoCode] = useState(initial.promoCode ?? '')
   const [discountPercent, setDiscountPercent] = useState(initial.discountPercent ?? '')
   const [description, setDescription] = useState(initial.description ?? '')
@@ -991,9 +1000,9 @@ function PromotionForm({ initial, onSave, onCancel }: { initial: any; onSave: (d
    REVIEWS CRUD
    ══════════════════════════════════════════ */
 function ReviewsSection() {
-  const [items, setItems] = useState<any[]>([])
-  const [products, setProducts] = useState<any[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
+  const [items, setItems] = useState<BackendReview[]>([])
+  const [products, setProducts] = useState<BackendProduct[]>([])
+  const [customers, setCustomers] = useState<BackendCustomer[]>([])
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<number | null>(null)
 
@@ -1009,7 +1018,7 @@ function ReviewsSection() {
   const didLoad = useRef(false)
   useEffect(() => { if (!didLoad.current) { didLoad.current = true; load() } }, [load])
 
-  async function handleCreate(data: any) {
+  async function handleCreate(data: ReviewInput) {
     try { await reviewsApi.create(data); setAdding(false); load() } catch { alert('Lỗi tạo đánh giá') }
   }
 
@@ -1042,7 +1051,7 @@ function ReviewsSection() {
             </tr>
           </thead>
           <tbody>
-            {items.map((r: any) => (
+            {items.map((r) => (
               <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="px-3 py-2 text-xs text-muted-foreground">{r.id}</td>
                 <td className="px-3 py-2 text-xs max-w-[180px] truncate">{r.product?.name ?? `Product #${r.product?.id}`}</td>
@@ -1073,9 +1082,9 @@ function ReviewForm({
   onSave,
   onCancel,
 }: {
-  products: any[]
-  customers: any[]
-  onSave: (d: any) => void
+  products: BackendProduct[]
+  customers: BackendCustomer[]
+  onSave: (d: ReviewInput) => void
   onCancel: () => void
 }) {
   const [productId, setProductId] = useState(products[0]?.id ?? '')
@@ -1098,11 +1107,11 @@ function ReviewForm({
       <form onSubmit={submit} className="w-full max-w-md rounded-xl border bg-card p-5 shadow-lg">
         <h3 className="mb-4 font-bold">Thêm đánh giá</h3>
         <div className="space-y-3">
-          <select value={productId} onChange={(e) => setProductId(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
-            {products.map((p: any) => <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}
+          <select value={productId} onChange={(e) => setProductId(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
+            {products.map((p) => <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>)}
           </select>
-          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
-            {customers.map((c: any) => <option key={c.id} value={c.id}>{c.fullName} ({c.phone})</option>)}
+          <select value={customerId} onChange={(e) => setCustomerId(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2 text-sm">
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.fullName} ({c.phone})</option>)}
           </select>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Đánh giá</label>

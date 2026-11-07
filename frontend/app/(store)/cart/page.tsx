@@ -14,46 +14,28 @@ import {
   Trash2,
   Truck,
 } from 'lucide-react'
-import { PROMO_CODES, formatVND } from '@/lib/dmx-data'
-import { StoreProvider, useStore } from '@/components/dmx/store-provider'
+import { formatVND } from '@/lib/dmx-data'
+import { usePriceQuote } from '@/lib/pricing'
+import { useStore } from '@/components/dmx/store-provider'
 import { AppHeader } from '@/components/dmx/app-header'
 import { SiteFooter } from '@/components/dmx/site-footer'
 
 export default function CartPage() {
-  return (
-    <StoreProvider>
-      <CartContent />
-    </StoreProvider>
-  )
+  return <CartContent />
 }
 
 function CartContent() {
   const router = useRouter()
-  const { cart, updateCartQty, removeFromCart, clearCart, cartCount, cartSubtotal } = useStore()
+  const { cart, updateCartQty, removeFromCart, clearCart, cartCount, branchId, products, backendConnected } = useStore()
   const [promoInput, setPromoInput] = useState('')
-  const [appliedPromo, setAppliedPromo] = useState<string | null>(null)
-  const [promoError, setPromoError] = useState<string | null>(null)
-
-  const promoKey = (appliedPromo || '').trim().toUpperCase()
-  const promoDef = PROMO_CODES[promoKey]
-  const discount = promoDef ? promoDef.compute(cartSubtotal) : 0
-  const total = Math.max(0, cartSubtotal - discount)
+  const [appliedPromo, setAppliedPromo] = useState('')
+  const quote = usePriceQuote(cart, appliedPromo, branchId, products, backendConnected)
+  const { subtotal, discount, total } = quote
+  const promoKey = quote.promoApplied ? appliedPromo : ''
 
   function handleApplyPromo(e: React.FormEvent) {
     e.preventDefault()
-    const code = promoInput.trim().toUpperCase()
-    if (!code) {
-      setAppliedPromo(null)
-      setPromoError(null)
-      return
-    }
-    if (PROMO_CODES[code]) {
-      setAppliedPromo(code)
-      setPromoError(null)
-    } else {
-      setPromoError('Mã khuyến mãi không hợp lệ. Hãy thử MWG5 hoặc TET2027.')
-      setAppliedPromo(null)
-    }
+    setAppliedPromo(promoInput.trim().toUpperCase())
   }
 
   return (
@@ -215,10 +197,10 @@ function CartContent() {
                       Áp dụng
                     </button>
                   </div>
-                  {promoDef && (
-                    <p className="text-[11px] font-semibold text-success-ink">Đã áp dụng: {promoDef.label}</p>
-                  )}
-                  {promoError && <p className="text-[11px] font-semibold text-danger-ink">{promoError}</p>}
+                  {appliedPromo && quote.loading && <p className="text-[11px] text-muted-foreground">Đang kiểm tra mã...</p>}
+                  {quote.promoApplied && <p className="text-[11px] font-semibold text-success-ink">Đã áp dụng: {quote.promoLabel || appliedPromo}</p>}
+                  {appliedPromo && !quote.loading && !quote.promoApplied && !quote.error && <p className="text-[11px] font-semibold text-danger-ink">{quote.promoMessage || 'Mã khuyến mãi không hợp lệ.'}</p>}
+                  {quote.error && <p className="text-[11px] font-semibold text-danger-ink">{quote.error}</p>}
                 </form>
 
                 <div className="h-px bg-border" />
@@ -226,7 +208,7 @@ function CartContent() {
                 <dl className="flex flex-col gap-2 text-xs">
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Tạm tính ({cartCount} món)</dt>
-                    <dd className="tabular font-bold text-foreground">{formatVND(cartSubtotal)}</dd>
+                    <dd className="tabular font-bold text-foreground">{quote.loading ? 'Đang tính...' : formatVND(subtotal)}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Giảm giá</dt>
@@ -240,13 +222,15 @@ function CartContent() {
                   </div>
                 </dl>
 
-                <Link
-                  href={`/checkout${promoKey ? `?promo=${promoKey}` : ''}`}
-                  className="mt-2 flex h-12 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-extrabold text-foreground shadow-sm transition-all hover:bg-amber-400"
+                <button
+                  type="button"
+                  disabled={quote.loading || !!quote.error}
+                  onClick={() => router.push(`/checkout${promoKey ? `?promo=${encodeURIComponent(promoKey)}` : ''}`)}
+                  className="mt-2 flex h-12 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-extrabold text-foreground shadow-sm transition-all hover:bg-amber-400 disabled:opacity-50"
                 >
                   <span>Tiến hành thanh toán</span>
                   <ArrowRight className="size-4" />
-                </Link>
+                </button>
 
                 <div className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3 text-[11px] text-muted-foreground">
                   <p className="flex items-center gap-1.5">

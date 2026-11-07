@@ -40,15 +40,9 @@ export function AppHeader() {
 }
 
 function Logo() {
-  const { setCategory, setQuery, setTab } = useStore()
   return (
     <Link
       href="/"
-      onClick={() => {
-        setCategory('all')
-        setQuery('')
-        setTab('catalog')
-      }}
       className="flex shrink-0 items-center gap-3 transition-opacity hover:opacity-90"
       aria-label="Điện Máy Xanh — trang chủ"
     >

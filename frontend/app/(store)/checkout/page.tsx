@@ -21,19 +21,18 @@ import {
   User,
   Wallet,
 } from 'lucide-react'
-import { BRANCHES, PROMO_CODES, formatVND, type BranchId, type Order } from '@/lib/dmx-data'
-import { StoreProvider, useStore } from '@/components/dmx/store-provider'
+import { BRANCHES, formatVND, type BranchId, type Order } from '@/lib/dmx-data'
+import { useStore } from '@/components/dmx/store-provider'
+import { usePriceQuote } from '@/lib/pricing'
 import { AppHeader } from '@/components/dmx/app-header'
 import { SiteFooter } from '@/components/dmx/site-footer'
 import { cn } from '@/lib/utils'
 
 export default function CheckoutPage() {
   return (
-    <StoreProvider>
-      <Suspense fallback={<div className="p-12 text-center text-sm text-muted-foreground">Đang tải trang thanh toán...</div>}>
-        <CheckoutContent />
-      </Suspense>
-    </StoreProvider>
+    <Suspense fallback={<div className="p-12 text-center text-sm text-muted-foreground">Đang tải trang thanh toán...</div>}>
+      <CheckoutContent />
+    </Suspense>
   )
 }
 
@@ -88,7 +87,7 @@ function CheckoutContent() {
   const searchParams = useSearchParams()
   const initialPromo = searchParams.get('promo') || ''
 
-  const { cart, cartSubtotal, cartCount, placeCartOrder, customer } = useStore()
+  const { cart, cartCount, placeCartOrder, customer, products, backendConnected, branchId: storeBranchId } = useStore()
 
   // 1. Thông tin người đặt
   const [salutation, setSalutation] = useState<'Anh' | 'Chị'>('Anh')
@@ -112,7 +111,7 @@ function CheckoutContent() {
   const [fulfillment, setFulfillment] = useState<'pickup' | 'delivery'>('pickup')
   // Nhận tại siêu thị
   const [selectedDistrict, setSelectedDistrict] = useState<string>('Tất cả quận/huyện')
-  const [branchId, setBranchId] = useState<BranchId>('q9')
+  const [branchId, setBranchId] = useState<BranchId>(storeBranchId)
   // Giao tận nơi
   const [province, setProvince] = useState('TP. Hồ Chí Minh')
   const [district, setDistrict] = useState('TP. Thủ Đức (Quận 9 cũ)')
@@ -136,9 +135,8 @@ function CheckoutContent() {
   const [successOrder, setSuccessOrder] = useState<Order | null>(null)
 
   const promoKey = promo.trim().toUpperCase()
-  const promoDef = PROMO_CODES[promoKey]
-  const discount = promoDef ? promoDef.compute(cartSubtotal) : 0
-  const total = Math.max(0, cartSubtotal - discount)
+  const quote = usePriceQuote(cart, promoKey, branchId, products, backendConnected)
+  const { subtotal, discount, total } = quote
 
   // Danh sách chi nhánh hiển thị sau khi lọc
   const visibleBranches = useMemo(() => {
@@ -166,6 +164,7 @@ function CheckoutContent() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (quote.loading || quote.error) return
     const v = validate()
     setErrors(v)
     if (Object.keys(v).length > 0) {
@@ -514,7 +513,7 @@ function CheckoutContent() {
                                   {b.name} <span className="font-semibold text-primary">({b.district})</span>
                                 </span>
                                 <span className="text-[11px] text-muted-foreground">{b.address}</span>
-                                <span className="text-[10px] text-muted-foreground font-mono">Hotline: {(b as any).phone || '028.3730.1234'}</span>
+                                <span className="text-[10px] text-muted-foreground font-mono">Hotline: '028.3730.1234'</span>
                               </div>
                             </div>
                             <span className="mt-0.5 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-bold text-success-ink shrink-0">
@@ -754,7 +753,7 @@ function CheckoutContent() {
                 <dl className="flex flex-col gap-2.5 text-xs">
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Tạm tính ({cartCount} sản phẩm)</dt>
-                    <dd className="tabular font-bold text-foreground">{formatVND(cartSubtotal)}</dd>
+                    <dd className="tabular font-bold text-foreground">{quote.loading ? 'Đang tính...' : formatVND(subtotal)}</dd>
                   </div>
 
                   {discount > 0 && (
@@ -775,15 +774,15 @@ function CheckoutContent() {
                   </div>
                 </dl>
 
-                {errors.form && (
+                {(errors.form || quote.error || (promoKey && !quote.promoApplied && !quote.loading && quote.promoMessage)) && (
                   <p className="rounded-lg bg-danger-soft p-2.5 text-xs font-bold text-danger-ink">
-                    {errors.form}
+                    {errors.form || quote.error || quote.promoMessage}
                   </p>
                 )}
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || quote.loading || !!quote.error}
                   className="flex h-12 items-center justify-center rounded-xl bg-accent text-sm font-extrabold text-foreground shadow-sm transition-all hover:bg-amber-400 active:scale-[0.99] disabled:opacity-50"
                 >
                   {loading ? 'Đang gửi đơn hàng vào hệ thống...' : 'XÁC NHẬN ĐẶT HÀNG NGAY'}

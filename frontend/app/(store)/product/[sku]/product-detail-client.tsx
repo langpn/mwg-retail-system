@@ -28,7 +28,6 @@ import {
 import {
   BRANCHES,
   CATEGORIES,
-  INITIAL_PRODUCTS,
   formatVND,
   getBranch,
   getBrandOrigin,
@@ -36,28 +35,21 @@ import {
   type BranchId,
   type Product,
 } from '@/lib/dmx-data'
-import { StoreProvider, useStore } from '@/components/dmx/store-provider'
+import { useStore } from '@/components/dmx/store-provider'
 import { AppHeader } from '@/components/dmx/app-header'
 import { SiteFooter } from '@/components/dmx/site-footer'
 import { cn } from '@/lib/utils'
 
 export default function ProductDetailClient({ sku }: { sku: string }) {
-  return (
-    <StoreProvider>
-      <ProductDetailBody sku={sku} />
-    </StoreProvider>
-  )
+  const { products, backendConnected } = useStore()
+  const product = products.find((item) => item.sku === sku)
+  if (!product) return <p className="p-12 text-center text-sm text-muted-foreground">{backendConnected === null ? 'Đang tải sản phẩm...' : 'Không tìm thấy sản phẩm.'}</p>
+  return <ProductDetailBody product={product} />
 }
 
-function ProductDetailBody({ sku }: { sku: string }) {
+function ProductDetailBody({ product }: { product: Product }) {
   const router = useRouter()
-  const { products, branchId, setBranchId, addToCart } = useStore()
-
-  // Find product or fallback to sample
-  const product: Product =
-    products.find((p) => p.sku === sku) ||
-    INITIAL_PRODUCTS.find((p) => p.sku === sku) ||
-    INITIAL_PRODUCTS[0]
+  const { branchId, setBranchId, addToCart } = useStore()
 
   const details = getProductDetails(product)
   const category = CATEGORIES.find((c) => c.id === product.category)

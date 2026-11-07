@@ -15,17 +15,13 @@ import {
   User,
   UserPlus,
 } from 'lucide-react'
-import { StoreProvider, useStore } from '@/components/dmx/store-provider'
+import { useStore } from '@/components/dmx/store-provider'
 import { AppHeader } from '@/components/dmx/app-header'
 import { SiteFooter } from '@/components/dmx/site-footer'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 
 export default function AuthPage() {
-  return (
-    <StoreProvider>
-      <AuthContent />
-    </StoreProvider>
-  )
+  return <AuthContent />
 }
 
 function AuthContent() {
@@ -59,42 +55,22 @@ function AuthContent() {
 
     setSubmitting(true)
     try {
-      // 1. Tìm trực tiếp theo số điện thoại qua API backend
-      let foundCustomer: any = null
-      const res = await api.getCustomerByPhone(identifier)
-      if (res.ok) {
-        foundCustomer = await res.json()
-      } else {
-        // 2. Nếu không tìm thấy, quét danh sách toàn bộ khách hàng
-        const list = await api.getCustomers()
-        if (Array.isArray(list)) {
-          foundCustomer = list.find(
-            (c: any) =>
-              c.phone === identifier ||
-              (c.email && c.email.toLowerCase() === identifier.toLowerCase()),
-          )
-        }
-      }
-
-      if (foundCustomer) {
-        loginCustomer({
-          id: foundCustomer.id,
-          fullName: foundCustomer.fullName,
-          phone: foundCustomer.phone,
-          email: foundCustomer.email,
-          address: foundCustomer.address,
-        })
-        setNotification(`Đăng nhập thành công! Chào mừng ${foundCustomer.fullName}.`)
-        setTimeout(() => {
-          router.push('/')
-        }, 800)
-      } else {
-        setError(
-          'Không tìm thấy thành viên với SĐT/Email này trong CSDL. Quý khách vui lòng chọn tab "Đăng ký" bên trên nhé!',
-        )
-      }
-    } catch {
-      setError('Không thể kết nối đến máy chủ MySQL/Backend. Vui lòng kiểm tra lại tiến trình!')
+      const foundCustomer = await api.customers.lookup(identifier)
+      loginCustomer({
+        id: foundCustomer.id,
+        fullName: foundCustomer.fullName,
+        phone: foundCustomer.phone,
+        email: foundCustomer.email,
+        address: foundCustomer.address,
+      })
+      setNotification(`Đăng nhập thành công! Chào mừng ${foundCustomer.fullName}.`)
+      setTimeout(() => {
+        router.push('/')
+      }, 800)
+    } catch (error) {
+      setError(error instanceof ApiError && error.status === 404
+        ? 'Không tìm thấy thành viên với SĐT/Email này trong CSDL. Quý khách vui lòng chọn tab "Đăng ký" bên trên nhé!'
+        : 'Không thể kết nối đến máy chủ MySQL/Backend. Vui lòng kiểm tra lại tiến trình!')
     } finally {
       setSubmitting(false)
     }
@@ -117,27 +93,12 @@ function AuthContent() {
 
     setSubmitting(true)
     try {
-      const res = await api.createCustomer({
+      const created = await api.customers.create({
         fullName: nameClean,
         phone: phoneClean,
         email: emailClean || undefined,
         address: addressClean,
       })
-
-      if (res.status === 409) {
-        setError('Số điện thoại này đã được đăng ký thành viên trước đó. Vui lòng chuyển sang Đăng nhập!')
-        setSubmitting(false)
-        return
-      }
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setError(data.message || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin!')
-        setSubmitting(false)
-        return
-      }
-
-      const created = await res.json()
       loginCustomer({
         id: created.id,
         fullName: created.fullName,
@@ -150,8 +111,10 @@ function AuthContent() {
       setTimeout(() => {
         router.push('/')
       }, 900)
-    } catch {
-      setError('Lỗi kết nối máy chủ backend. Vui lòng kiểm tra cổng 8088!')
+    } catch (error) {
+      setError(error instanceof ApiError
+        ? error.status === 409 ? 'Số điện thoại này đã được đăng ký thành viên trước đó. Vui lòng chuyển sang Đăng nhập!' : error.message
+        : 'Lỗi kết nối máy chủ backend. Vui lòng kiểm tra cổng 8088!')
     } finally {
       setSubmitting(false)
     }
@@ -161,20 +124,17 @@ function AuthContent() {
     setSubmitting(true)
     setError(null)
     try {
-      const res = await api.getCustomerByPhone('0901234567')
-      if (res.ok) {
-        const found = await res.json()
-        loginCustomer({
-          id: found.id,
-          fullName: found.fullName,
-          phone: found.phone,
-          email: found.email,
-          address: found.address,
-        })
-        setNotification(`Đăng nhập thành công với tài khoản mẫu: ${found.fullName}!`)
-        setTimeout(() => router.push('/'), 700)
-        return
-      }
+      const found = await api.customers.byPhone('0901234567')
+      loginCustomer({
+        id: found.id,
+        fullName: found.fullName,
+        phone: found.phone,
+        email: found.email,
+        address: found.address,
+      })
+      setNotification(`Đăng nhập thành công với tài khoản mẫu: ${found.fullName}!`)
+      setTimeout(() => router.push('/'), 700)
+      return
     } catch {}
 
     // Fallback nếu server chưa phản hồi
