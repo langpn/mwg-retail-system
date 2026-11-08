@@ -268,6 +268,7 @@ function AccountDropdown() {
       <button
         type="button"
         aria-haspopup="menu"
+        aria-label="Tài khoản"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
@@ -319,16 +320,18 @@ function AccountDropdown() {
             <MenuLink href="/cart" icon={<ShoppingBag className="size-4 text-muted-foreground" />} label="Giỏ hàng" />
           </div>
 
-          <div className="border-t border-border py-1">
-            <MenuLink href="/dashboard" icon={<LayoutDashboard className="size-4 text-muted-foreground" />} label="Quản trị CSDL" />
-            <a
-              href={MVC_URL}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
-            >
-              <Store className="size-4 text-muted-foreground" aria-hidden="true" />
-              Trang MVC
-            </a>
-          </div>
+          {isAdmin && (
+            <div className="border-t border-border py-1">
+              <MenuLink href="/dashboard" icon={<LayoutDashboard className="size-4 text-muted-foreground" />} label="Quản trị CSDL" />
+              <a
+                href={MVC_URL}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+              >
+                <Store className="size-4 text-muted-foreground" aria-hidden="true" />
+                Trang MVC
+              </a>
+            </div>
+          )}
 
           {customer && (
             <div className="border-t border-border py-1">

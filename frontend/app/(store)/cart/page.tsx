@@ -27,6 +27,9 @@ export default function CartPage() {
 function CartContent() {
   const router = useRouter()
   const { cart, updateCartQty, removeFromCart, clearCart, cartCount, branchId, setBranchId, products, backendConnected, customer } = useStore()
+  const [promoInput, setPromoInput] = useState('')
+  const [appliedPromo, setAppliedPromo] = useState('')
+  const quote = usePriceQuote(customer?.role === 'ADMIN' ? [] : cart, appliedPromo, branchId, products, backendConnected)
 
   // Nếu là Quản trị viên, không cho phép mua sắm
   if (customer?.role === 'ADMIN') {
@@ -63,9 +66,6 @@ function CartContent() {
     )
   }
 
-  const [promoInput, setPromoInput] = useState('')
-  const [appliedPromo, setAppliedPromo] = useState('')
-  const quote = usePriceQuote(cart, appliedPromo, branchId, products, backendConnected)
   const { subtotal, discount, total } = quote
   const promoKey = quote.promoApplied ? appliedPromo : ''
 

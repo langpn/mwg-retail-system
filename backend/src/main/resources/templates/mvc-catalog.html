@@ -67,7 +67,9 @@
     <div class="topbar">
         <strong>ĐIỆN MÁY XANH · Spring MVC</strong>
         <nav aria-label="Điều hướng">
-            <a href="/">Trang chủ</a><a href="/dashboard">Quản trị</a><a href="/mvc/catalog" aria-current="page">Danh mục MVC</a>
+            <a href="/">Trang chủ</a>
+            <a href="/dashboard" data-admin-link hidden>Quản trị</a>
+            <a href="/mvc/catalog" data-admin-link hidden aria-current="page">Danh mục MVC</a>
         </nav>
     </div>
 </header>
@@ -175,6 +177,12 @@
     </form>
 </dialog>
 <script>
+    try {
+        const customer = JSON.parse(localStorage.getItem('mwg_customer_v1') || 'null');
+        if (customer?.role === 'ADMIN') {
+            document.querySelectorAll('[data-admin-link]').forEach(link => { link.hidden = false; });
+        }
+    } catch {}
     const api = '/api/v1/products';
     const byId = id => document.getElementById(id);
     const body = byId('productTableBody');

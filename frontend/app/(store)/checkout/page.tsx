@@ -93,7 +93,7 @@ function CheckoutContent() {
             </ul>
             <p className="mt-4 flex justify-between font-bold">Tổng thanh toán <span className="tabular text-price">{formatVND(successOrder.total)}</span></p>
             <div className="mt-6 flex flex-wrap gap-4 text-sm font-semibold text-primary">
-              <Link href="/orders">Tra cứu đơn hàng</Link><Link href="/">Về cửa hàng</Link><Link href="/dashboard">Quản trị CSDL</Link>
+              <Link href="/orders">Tra cứu đơn hàng</Link><Link href="/">Về cửa hàng</Link>
             </div>
           </section>
         ) : (
